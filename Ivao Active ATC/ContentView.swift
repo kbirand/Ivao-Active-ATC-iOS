@@ -25,6 +25,21 @@ extension JSONDecoder {
     }
 }
 
+extension View {
+    func hiddenNavigationBarStyle() -> some View {
+        modifier(HiddenNavigationBar())
+    }
+}
+
+
+struct HiddenNavigationBar: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+        .navigationBarTitle("", displayMode: .inline)
+        .navigationBarHidden(true)
+    }
+}
+
 struct StarShape: Shape {
     let points: Int
     let innerRatio: CGFloat
@@ -238,24 +253,17 @@ struct ContentView: View {
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     @State private var showMap = false
     @State private var timer: Timer?
+    @State private var selectedATC: Atc?
     
     var body: some View {
         ZStack {
-            NavigationView {
-                VStack {
-                    searchBarWithMapButton
-                    atcCountText
-                    atcList
-                }
-                .navigationTitle("")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        logoLink
-                    }
+            Group {
+                if UIDevice.current.userInterfaceIdiom == .phone {
+                    phoneLayout
+                } else {
+                    tabletDesktopLayout
                 }
             }
-            .navigationViewStyle(StackNavigationViewStyle())
             
             if showMap {
                 fullScreenMapView
@@ -271,43 +279,124 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification), perform: onWillEnterForeground)
     }
     
-    private var searchBarWithMapButton: some View {
-        HStack {
-            Button(action: {
-                showMap = true
-            }) {
-                Image(systemName: "map")
-                    .foregroundColor(.blue)
-            }
-            .padding(.leading)
-            
-            TextField("Search", text: $searchText)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
-                .onChange(of: searchText) { oldValue, newValue in
-                    searchText = newValue.uppercased()
-                    UserDefaults.standard.set(searchText, forKey: "searchText")
-                }
-        }
-        .padding([.top, .horizontal])
-    }
-    
-    private var fullScreenMapView: some View {
-         ZStack(alignment: .topTrailing) {
-             ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
-                 .edgesIgnoringSafeArea(.all)
-             
-             Button(action: {
-                 showMap = false
-             }) {
-                 Image(systemName: "xmark.circle.fill")
-                     .font(.title)
-                     .foregroundColor(.white)
-                     .background(Color.black.opacity(0.6))
-                     .clipShape(Circle())
+    var phoneLayout: some View {
+         NavigationView {
+             VStack {
+                 searchBarWithMapButton
+                 atcCountText
+                 atcList
              }
-             .padding()
+             .navigationTitle("")
+             .navigationBarTitleDisplayMode(.inline)
+             .toolbar {
+                 ToolbarItem(placement: .principal) {
+                     logoLink
+                 }
+             }
          }
+         .navigationViewStyle(StackNavigationViewStyle())
      }
+     
+    var tabletDesktopLayout: some View {
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                // Sidebar
+                VStack {
+                    logoLink
+                    searchBarWithMapButton
+                    atcCountText
+                    atcList
+                }
+                .frame(width: geometry.size.width * 0.3)
+                .background(Color(UIColor.systemBackground))
+
+                // Detail view
+                if let atc = selectedATC {
+                    ATCDetailViewWrapper(
+                        atcId: atc.id,
+                        viewModel: viewModel
+                    )
+                    .id(atc.id)
+                    .navigationViewStyle(StackNavigationViewStyle())
+                    .frame(width: geometry.size.width * 0.7)
+                } else {
+                    Text("Select an ATC")
+                        .frame(width: geometry.size.width * 0.7)
+                }
+            }
+        }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                logoLink
+            }
+        }
+    }
+        
+        var searchBarWithMapButton: some View {
+            HStack {
+                Button(action: {
+                    showMap = true
+                }) {
+                    Image(systemName: "map")
+                        .foregroundColor(.blue)
+                }
+                .padding(.leading)
+                
+                TextField("Search", text: $searchText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .onChange(of: searchText) { oldValue, newValue in
+                        searchText = newValue.uppercased()
+                        UserDefaults.standard.set(searchText, forKey: "searchText")
+                    }
+            }
+            .padding([.top, .horizontal])
+        }
+        
+        var fullScreenMapView: some View {
+            ZStack(alignment: .topTrailing) {
+                ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
+                    .edgesIgnoringSafeArea(.all)
+                
+                Button(action: {
+                    showMap = false
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title)
+                        .foregroundColor(.white)
+                        .background(Color.black.opacity(0.6))
+                        .clipShape(Circle())
+                }
+                .padding()
+            }
+        }
+        
+    var atcList: some View {
+        List(viewModel.atcs.filter { $0.callsign.hasPrefix(searchText) || searchText.isEmpty }, id: \.id) { atc in
+            if UIDevice.current.userInterfaceIdiom == .phone {
+                NavigationLink(destination: ATCDetailView(
+                    atc: atc,
+                    polygonData: viewModel.polygonData,
+                    cCode: viewModel.countryName(fromCode: String(atc.callsign.prefix(2))).lowercased(),
+                    station: viewModel.getStationName(fromCode: String(atc.callsign)),
+                    pilots: viewModel.pilots,
+                    region: MKCoordinateRegion(
+                        center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                        span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
+                    ),
+                    isIPhone: true
+                )) {
+                    ATCListItemView(atc: atc, viewModel: viewModel)
+                }
+            } else {
+                ATCListItemView(atc: atc, viewModel: viewModel)
+                    .onTapGesture {
+                        selectedATC = atc
+                    }
+            }
+        }
+    }
     
     private var mapView: some View {
         ZStack(alignment: .topTrailing) {
@@ -340,21 +429,7 @@ struct ContentView: View {
             .padding(.bottom)
     }
     
-    private var atcList: some View {
-        List {
-            ForEach(viewModel.atcs.filter { $0.callsign.hasPrefix(searchText) || searchText.isEmpty }, id: \.id) { atc in
-                NavigationLink(destination: ATCDetailView(
-                    atc: atc,
-                    polygonData: viewModel.polygonData,
-                    cCode: viewModel.countryName(fromCode: String(atc.callsign.prefix(2))).lowercased(),
-                    station: viewModel.getStationName(fromCode: String(atc.callsign)),
-                    pilots : viewModel.pilots
-                )) {
-                    ATCListItemView(atc: atc, viewModel: viewModel)
-                }
-            }
-        }
-    }
+
     
     private var logoLink: some View {
         Link(destination: URL(string: "https://webeye.ivao.aero/")!) {
@@ -397,6 +472,78 @@ struct ContentView: View {
             Task {
                 await refreshAction()
             }
+        }
+    }
+}
+
+struct ATCDetailViewWrapper: View {
+    let atcId: Int
+    @ObservedObject var viewModel: ATCViewModel
+    @State private var region: MKCoordinateRegion
+
+    var atc: Atc? {
+        viewModel.atcs.first(where: { $0.id == atcId })
+    }
+
+    init(atcId: Int, viewModel: ATCViewModel) {
+        self.atcId = atcId
+        self.viewModel = viewModel
+        let atc = viewModel.atcs.first(where: { $0.id == atcId })!
+        _region = State(initialValue: Self.getRegion(for: atc))
+    }
+
+    var body: some View {
+        Group {
+            if let atc = atc {
+                ATCDetailView(
+                    atc: atc,
+                    polygonData: viewModel.polygonData,
+                    cCode: viewModel.countryName(fromCode: String(atc.callsign.prefix(2))).lowercased(),
+                    station: viewModel.getStationName(fromCode: String(atc.callsign)),
+                    pilots: viewModel.pilots,
+                    region: region,
+                    isIPhone: false                )
+            } else {
+                Text("ATC not found")
+            }
+        }
+        .onChange(of: atc?.lastTrack.latitude) { oldValue, newValue in
+            updateRegion()
+        }
+        .onChange(of: atc?.lastTrack.longitude) { oldValue, newValue in
+            updateRegion()
+        }
+    }
+
+    private func updateRegion() {
+        if let atc = atc {
+            region = Self.getRegion(for: atc)
+        }
+    }
+
+    private static func getRegion(for atc: Atc) -> MKCoordinateRegion {
+        let span = getSpanForPosition(atc.atcSession.position)
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+            span: span
+        )
+    }
+
+    
+    private static func getSpanForPosition(_ position: String) -> MKCoordinateSpan {
+        switch position.lowercased() {
+        case "twr":
+            return MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
+        case "app":
+            return MKCoordinateSpan(latitudeDelta: 2.5, longitudeDelta: 2.5)
+        case "gnd":
+            return MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
+        case "del":
+            return MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
+        case "ctr", "fss":
+            return MKCoordinateSpan(latitudeDelta: 25, longitudeDelta: 25)
+        default:
+            return MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
         }
     }
 }
@@ -599,27 +746,24 @@ struct ATCMapView: View {
     }
 }
 
-struct ATCDetailView: View {
+    struct ATCDetailView: View {
     let atc: Atc
     let polygonData: [WelcomeElement]
     let cCode: String
     let station: String
     let pilots: [Pilot]
+    let region: MKCoordinateRegion
+    let isIPhone: Bool
     @ObservedObject var viewModel = ATCViewModel()
     
-    @State private var region: MKCoordinateRegion
-    
-    init(atc: Atc, polygonData: [WelcomeElement], cCode: String, station: String, pilots : [Pilot]) {
+    init(atc: Atc, polygonData: [WelcomeElement], cCode: String, station: String, pilots: [Pilot], region: MKCoordinateRegion, isIPhone: Bool) {
         self.atc = atc
         self.polygonData = polygonData
         self.cCode = cCode
         self.station = station
         self.pilots = pilots
-        let span = Self.getSpanForPosition(atc.atcSession.position)
-        _region = State(initialValue: MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
-            span: span
-        ))
+        self.region = region
+        self.isIPhone = isIPhone
     }
     
     var body: some View {
@@ -754,7 +898,8 @@ struct ATCDetailView: View {
             .padding()
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .navigationTitle(atc.callsign + " Details")
+        .navigationTitle(isIPhone ? atc.callsign + " Details" : "")
+        .navigationBarTitleDisplayMode(isIPhone ? .inline : .automatic)
     }
     
     private static func getSpanForPosition(_ position: String) -> MKCoordinateSpan {
@@ -782,12 +927,30 @@ struct ATCDetailView: View {
     }
     
     private func getPolygonCoordinates(for element: WelcomeElement) -> [CLLocationCoordinate2D]? {
-        if let polygonData = element.atcPosition?.regionMapPolygon {
-            return polygonData.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) }
-        } else if let polygonData = element.subcenter?.regionMapPolygon {
-            return polygonData.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) }
+        let coordinates: [RegionMap]?
+        if let regionMap = element.atcPosition?.regionMap {
+            coordinates = regionMap
+        } else if let regionMap = element.subcenter?.regionMap {
+            coordinates = regionMap
+        } else {
+            return nil
         }
-        return nil
+        
+        return coordinates?.compactMap { coordinate in
+            let normalizedLng = normalizeLongitude(coordinate.lng)
+            return CLLocationCoordinate2D(latitude: coordinate.lat, longitude: normalizedLng)
+        }
+    }
+
+    private func normalizeLongitude(_ longitude: Double) -> Double {
+        var normalized = longitude
+        while normalized < -180 {
+            normalized += 360
+        }
+        while normalized > 180 {
+            normalized -= 360
+        }
+        return normalized
     }
     
     private func createStarCoordinates(center: CLLocationCoordinate2D, radius: CLLocationDegrees, points: Int, rotation: Double) -> [CLLocationCoordinate2D] {
