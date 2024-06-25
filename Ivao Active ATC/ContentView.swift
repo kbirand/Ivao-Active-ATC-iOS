@@ -31,6 +31,45 @@ extension View {
     }
 }
 
+extension ATCViewModel {
+    func isPointInPolygon(point: CLLocationCoordinate2D, polygon: [RegionMap]) -> Bool {
+        var isInside = false
+        let nvert = polygon.count
+        var j = nvert - 1
+        
+        for i in 0..<nvert {
+            if ((polygon[i].lat > point.latitude) != (polygon[j].lat > point.latitude)) &&
+                (point.longitude < (polygon[j].lng - polygon[i].lng) * (point.latitude - polygon[i].lat) / (polygon[j].lat - polygon[i].lat) + polygon[i].lng) {
+                isInside = !isInside
+            }
+            j = i
+        }
+        
+        return isInside
+    }
+    
+    func countPilotsInRegion(for atc: Atc) -> Int {
+        guard let element = polygonData.first(where: { $0.callsign == atc.callsign }),
+              (element.atcSession.position == .ctr || element.atcSession.position == .fss) else {
+            return 0
+        }
+        
+        let regionMap: [RegionMap]
+        if let positionRegionMap = element.atcPosition?.regionMap {
+            regionMap = positionRegionMap
+        } else if let subcenterRegionMap = element.subcenter?.regionMap {
+            regionMap = subcenterRegionMap
+        } else {
+            return 0
+        }
+        
+        return pilots.filter { pilot in
+            guard let lastTrack = pilot.lastTrack else { return false }
+            let pilotCoordinate = CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)
+            return isPointInPolygon(point: pilotCoordinate, polygon: regionMap)
+        }.count
+    }
+}
 
 struct HiddenNavigationBar: ViewModifier {
     func body(content: Content) -> some View {
@@ -74,12 +113,17 @@ class ATCViewModel: ObservableObject {
     @Published var pilots: [Pilot] = []
     @Published var countries: [RootCountry] = []
     @Published var polygonData: [WelcomeElement] = []
-    @Published var pilotCounts: [String: (inbound: Int, outbound: Int)] = [:]
+    @Published var pilotCounts: [String: (inbound: Int, outbound: Int, inRegion: Int)] = [:]
     
     private var cancellables = Set<AnyCancellable>()
     
     func updatePilotCounts(pilots: [Pilot]) {
-        var counts: [String: (inbound: Int, outbound: Int)] = [:]
+        var counts: [String: (inbound: Int, outbound: Int, inRegion: Int)] = [:]
+        
+        for atc in atcs {
+            let inRegionCount = countPilotsInRegion(for: atc)
+            counts[atc.callsign] = (inbound: 0, outbound: 0, inRegion: inRegionCount)
+        }
         
         for pilot in pilots {
             let departure = pilot.flightPlan?.departureId?.prefix(4)
@@ -90,10 +134,10 @@ class ATCViewModel: ObservableObject {
                 let atcPrefix = atc.callsign.prefix(4)
                 
                 if atcPrefix == departure {
-                    counts[atc.callsign, default: (0, 0)].outbound += 1
+                    counts[atc.callsign, default: (0, 0, 0)].outbound += 1
                 }
                 if atcPrefix == arrival {
-                    counts[atc.callsign, default: (0, 0)].inbound += 1
+                    counts[atc.callsign, default: (0, 0, 0)].inbound += 1
                 }
             }
         }
@@ -601,15 +645,26 @@ struct ATCInfoView: View {
                 .foregroundColor(.secondary)
             HStack(spacing: 5) {
                 if let counts = viewModel.pilotCounts[atc.callsign] {
-                    Text("\(counts.inbound)")
-                        .foregroundColor(.green)
-                    Text("/")
-                    Text("\(counts.outbound)")
-                        .foregroundColor(.red)
-                } else {
-                    Text("0")
-                    Text("/")
-                    Text("0")
+                    
+                    if atc.atcSession.position == "CTR" || atc.atcSession.position == "FSS" {
+                        if counts.inRegion != 0 {
+                            Text("\(counts.inRegion)")
+                                .foregroundColor(.blue)
+                        } else {
+                            Text("0")
+                        }
+                    } else {
+                        if counts.inbound != 0 && counts.outbound != 0 {
+                            Text("\(counts.inbound)")
+                                .foregroundColor(.green)
+                            Text("/")
+                            Text("\(counts.outbound)")
+                                .foregroundColor(.red)
+                        } else {
+                            Text("0 / 0")
+                        }
+                    }
+                   
                 }
             }
         }
