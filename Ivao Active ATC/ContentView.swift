@@ -320,7 +320,8 @@ struct ContentView: View {
                     .navigationViewStyle(StackNavigationViewStyle())
                     .frame(width: geometry.size.width * 0.7)
                 } else {
-                    Text("Select an ATC")
+                    ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
+                        .edgesIgnoringSafeArea(.all)
                         .frame(width: geometry.size.width * 0.7)
                 }
             }
@@ -355,7 +356,7 @@ struct ContentView: View {
     }
     
     var fullScreenMapView: some View {
-        ZStack(alignment: .topTrailing) {
+        ZStack(alignment: .topLeading) {
             ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
                 .edgesIgnoringSafeArea(.all)
             
@@ -369,6 +370,8 @@ struct ContentView: View {
                     .clipShape(Circle())
             }
             .padding()
+            .padding(.top, 0)  // Add top padding to move it below the status bar
+            .padding(.leading, 20)
         }
     }
     
