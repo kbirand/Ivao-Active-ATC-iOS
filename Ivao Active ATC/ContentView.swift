@@ -35,8 +35,8 @@ extension View {
 struct HiddenNavigationBar: ViewModifier {
     func body(content: Content) -> some View {
         content
-        .navigationBarTitle("", displayMode: .inline)
-        .navigationBarHidden(true)
+            .navigationBarTitle("", displayMode: .inline)
+            .navigationBarHidden(true)
     }
 }
 
@@ -217,34 +217,34 @@ class ATCViewModel: ObservableObject {
     }
     
     func fetchATCs() {
-         guard let url = URL(string: "https://api.ivao.aero/v2/tracker/whazzup") else { return }
-         
-         URLSession.shared.dataTaskPublisher(for: url)
-             .map { $0.data }
-             .decode(type: Root.self, decoder: JSONDecoder.customDecoder())
-             .receive(on: DispatchQueue.main)
-             .sink(
-                 receiveCompletion: { completion in
-                     switch completion {
-                     case .finished:
-                         break
-                     case .failure(let error):
-                         print("Error fetching ATCs: \(error.localizedDescription)")
-                     }
-                 },
-                 receiveValue: { [weak self] root in
-                     // Only update if we have new data
-                     if !root.clients.atcs.isEmpty {
-                         self?.atcs = root.clients.atcs.sorted { $0.callsign < $1.callsign }
-                         self?.pilots = root.clients.pilots
-                         self?.updatePilotCounts(pilots: root.clients.pilots)
-                     } else {
-                         print("Received empty ATC data, keeping existing data")
-                     }
-                 }
-             )
-             .store(in: &cancellables)
-     }
+        guard let url = URL(string: "https://api.ivao.aero/v2/tracker/whazzup") else { return }
+        
+        URLSession.shared.dataTaskPublisher(for: url)
+            .map { $0.data }
+            .decode(type: Root.self, decoder: JSONDecoder.customDecoder())
+            .receive(on: DispatchQueue.main)
+            .sink(
+                receiveCompletion: { completion in
+                    switch completion {
+                    case .finished:
+                        break
+                    case .failure(let error):
+                        print("Error fetching ATCs: \(error.localizedDescription)")
+                    }
+                },
+                receiveValue: { [weak self] root in
+                    // Only update if we have new data
+                    if !root.clients.atcs.isEmpty {
+                        self?.atcs = root.clients.atcs.sorted { $0.callsign < $1.callsign }
+                        self?.pilots = root.clients.pilots
+                        self?.updatePilotCounts(pilots: root.clients.pilots)
+                    } else {
+                        print("Received empty ATC data, keeping existing data")
+                    }
+                }
+            )
+            .store(in: &cancellables)
+    }
 }
 
 struct ContentView: View {
@@ -280,23 +280,23 @@ struct ContentView: View {
     }
     
     var phoneLayout: some View {
-         NavigationView {
-             VStack {
-                 searchBarWithMapButton
-                 atcCountText
-                 atcList
-             }
-             .navigationTitle("")
-             .navigationBarTitleDisplayMode(.inline)
-             .toolbar {
-                 ToolbarItem(placement: .principal) {
-                     logoLink
-                 }
-             }
-         }
-         .navigationViewStyle(StackNavigationViewStyle())
-     }
-     
+        NavigationView {
+            VStack {
+                searchBarWithMapButton
+                atcCountText
+                atcList
+            }
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    logoLink
+                }
+            }
+        }
+        .navigationViewStyle(StackNavigationViewStyle())
+    }
+    
     var tabletDesktopLayout: some View {
         GeometryReader { geometry in
             HStack(spacing: 0) {
@@ -309,7 +309,7 @@ struct ContentView: View {
                 }
                 .frame(width: geometry.size.width * 0.3)
                 .background(Color(UIColor.systemBackground))
-
+                
                 // Detail view
                 if let atc = selectedATC {
                     ATCDetailViewWrapper(
@@ -333,45 +333,45 @@ struct ContentView: View {
             }
         }
     }
-        
-        var searchBarWithMapButton: some View {
-            HStack {
-                Button(action: {
-                    showMap = true
-                }) {
-                    Image(systemName: "map")
-                        .foregroundColor(.blue)
-                }
-                .padding(.leading)
-                
-                TextField("Search", text: $searchText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .onChange(of: searchText) { oldValue, newValue in
-                        searchText = newValue.uppercased()
-                        UserDefaults.standard.set(searchText, forKey: "searchText")
-                    }
+    
+    var searchBarWithMapButton: some View {
+        HStack {
+            Button(action: {
+                showMap = true
+            }) {
+                Image(systemName: "map")
+                    .foregroundColor(.blue)
             }
-            .padding([.top, .horizontal])
-        }
-        
-        var fullScreenMapView: some View {
-            ZStack(alignment: .topTrailing) {
-                ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
-                    .edgesIgnoringSafeArea(.all)
-                
-                Button(action: {
-                    showMap = false
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title)
-                        .foregroundColor(.white)
-                        .background(Color.black.opacity(0.6))
-                        .clipShape(Circle())
+            .padding(.leading)
+            
+            TextField("Search", text: $searchText)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .onChange(of: searchText) { oldValue, newValue in
+                    searchText = newValue.uppercased()
+                    UserDefaults.standard.set(searchText, forKey: "searchText")
                 }
-                .padding()
-            }
         }
-        
+        .padding([.top, .horizontal])
+    }
+    
+    var fullScreenMapView: some View {
+        ZStack(alignment: .topTrailing) {
+            ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
+                .edgesIgnoringSafeArea(.all)
+            
+            Button(action: {
+                showMap = false
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title)
+                    .foregroundColor(.white)
+                    .background(Color.black.opacity(0.6))
+                    .clipShape(Circle())
+            }
+            .padding()
+        }
+    }
+    
     var atcList: some View {
         List(viewModel.atcs.filter { $0.callsign.hasPrefix(searchText) || searchText.isEmpty }, id: \.id) { atc in
             if UIDevice.current.userInterfaceIdiom == .phone {
@@ -429,7 +429,7 @@ struct ContentView: View {
             .padding(.bottom)
     }
     
-
+    
     
     private var logoLink: some View {
         Link(destination: URL(string: "https://webeye.ivao.aero/")!) {
@@ -480,18 +480,18 @@ struct ATCDetailViewWrapper: View {
     let atcId: Int
     @ObservedObject var viewModel: ATCViewModel
     @State private var region: MKCoordinateRegion
-
+    
     var atc: Atc? {
         viewModel.atcs.first(where: { $0.id == atcId })
     }
-
+    
     init(atcId: Int, viewModel: ATCViewModel) {
         self.atcId = atcId
         self.viewModel = viewModel
         let atc = viewModel.atcs.first(where: { $0.id == atcId })!
         _region = State(initialValue: Self.getRegion(for: atc))
     }
-
+    
     var body: some View {
         Group {
             if let atc = atc {
@@ -514,13 +514,13 @@ struct ATCDetailViewWrapper: View {
             updateRegion()
         }
     }
-
+    
     private func updateRegion() {
         if let atc = atc {
             region = Self.getRegion(for: atc)
         }
     }
-
+    
     private static func getRegion(for atc: Atc) -> MKCoordinateRegion {
         let span = getSpanForPosition(atc.atcSession.position)
         return MKCoordinateRegion(
@@ -528,7 +528,7 @@ struct ATCDetailViewWrapper: View {
             span: span
         )
     }
-
+    
     
     private static func getSpanForPosition(_ position: String) -> MKCoordinateSpan {
         switch position.lowercased() {
@@ -618,7 +618,9 @@ struct ATCMapView: View {
     let cCode : String = ""
     let polygonData: [WelcomeElement]
     let pilots: [Pilot]
+    @State private var mapRotation: Double = 0
     @State private var position: MapCameraPosition = .automatic
+    @GestureState private var gestureRotation: Double = 0
     
     private let towerRadius: CLLocationDegrees = .fromKilometers(9.3)
     
@@ -626,18 +628,18 @@ struct ATCMapView: View {
         VStack {
             Map(position: $position) {
                 ForEach(pilots, id: \.id) { pilot in
-                                if let lastTrack = pilot.lastTrack {
-                                    Annotation(coordinate: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)) {
-                                        Image("plane")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .frame(width: 30, height: 30)
-                                            .rotationEffect(Angle(degrees: Double(lastTrack.heading)))
-                                    } label: {
-                                        Text(pilot.callsign)
-                                    }
-                                }
-                            }
+                    if let lastTrack = pilot.lastTrack {
+                        Annotation(coordinate: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)) {
+                            Image("plane")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 30, height: 30)
+                                .rotationEffect(Angle(degrees: Double(lastTrack.heading) - mapRotation))
+                        } label: {
+                            Text(pilot.callsign)
+                        }
+                    }
+                }
                 ForEach(polygonData, id: \.id) { element in
                     switch element.atcSession.position {
                     case .twr:
@@ -704,6 +706,10 @@ struct ATCMapView: View {
                 }
             }
             .mapStyle(.hybrid(elevation: .realistic))
+            .onMapCameraChange { context in
+                
+                mapRotation = context.camera.heading
+            }
         }
     }
     
@@ -722,7 +728,7 @@ struct ATCMapView: View {
             return CLLocationCoordinate2D(latitude: coordinate.lat, longitude: normalizedLng)
         }
     }
-
+    
     private func normalizeLongitude(_ longitude: Double) -> Double {
         var normalized = longitude
         while normalized < -180 {
@@ -746,7 +752,7 @@ struct ATCMapView: View {
     }
 }
 
-    struct ATCDetailView: View {
+struct ATCDetailView: View {
     let atc: Atc
     let polygonData: [WelcomeElement]
     let cCode: String
@@ -754,6 +760,8 @@ struct ATCMapView: View {
     let pilots: [Pilot]
     let region: MKCoordinateRegion
     let isIPhone: Bool
+    
+    @State private var mapRotation: Double = 0
     @ObservedObject var viewModel = ATCViewModel()
     
     init(atc: Atc, polygonData: [WelcomeElement], cCode: String, station: String, pilots: [Pilot], region: MKCoordinateRegion, isIPhone: Bool) {
@@ -863,7 +871,7 @@ struct ATCMapView: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: 30, height: 30)
-                                .rotationEffect(Angle(degrees: Double(lastTrack.heading)))
+                                .rotationEffect(Angle(degrees: Double(lastTrack.heading) - mapRotation))
                         } label: {
                             Text(pilot.callsign)
                         }
@@ -884,6 +892,9 @@ struct ATCMapView: View {
             .mapStyle(.hybrid(elevation: .realistic))
             .clipShape(RoundedRectangle(cornerRadius: 15))
             .padding(.horizontal)
+            .onMapCameraChange { context in
+                mapRotation = context.camera.heading
+            }
             
             Spacer()
             
@@ -941,7 +952,7 @@ struct ATCMapView: View {
             return CLLocationCoordinate2D(latitude: coordinate.lat, longitude: normalizedLng)
         }
     }
-
+    
     private func normalizeLongitude(_ longitude: Double) -> Double {
         var normalized = longitude
         while normalized < -180 {
