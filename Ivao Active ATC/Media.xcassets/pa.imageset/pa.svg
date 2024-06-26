@@ -1,14 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-pa" viewBox="0 0 640 480">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="flag-icons-pa" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 640 480">
   <defs>
-    <clipPath id="pa-a">
-      <path fill-opacity=".7" d="M0 0h640v480H0z"/>
+    <style>
+      .cls-1 {
+        clip-path: url(#clippath);
+      }
+
+      .cls-2 {
+        fill: none;
+      }
+
+      .cls-2, .cls-3, .cls-4, .cls-5, .cls-6, .cls-7 {
+        stroke-width: 0px;
+      }
+
+      .cls-3 {
+        fill: #d80000;
+      }
+
+      .cls-3, .cls-4, .cls-5, .cls-7 {
+        fill-rule: evenodd;
+      }
+
+      .cls-4, .cls-6 {
+        fill: #fff;
+      }
+
+      .cls-5 {
+        fill: #db0000;
+      }
+
+      .cls-7 {
+        fill: #0000ab;
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-2" width="640" height="480"/>
     </clipPath>
   </defs>
-  <g clip-path="url(#pa-a)">
-    <path fill="#fff" d="M0 0h640v480H0z"/>
-    <path fill="#fff" fill-rule="evenodd" d="M92.5 0h477.2v480H92.4z"/>
-    <path fill="#db0000" fill-rule="evenodd" d="M323 3.6h358v221.7H323z"/>
-    <path fill="#0000ab" fill-rule="evenodd" d="M3.2 225.3h319.9V480H3.2zm211.6-47.6-42-29.4-41.7 29.6 15.5-48L105 100l51.6-.4 16-48 16.3 47.9h51.6l-41.5 30 15.9 48z"/>
-    <path fill="#d80000" fill-rule="evenodd" d="m516.9 413.9-42.4-27.7-42.1 28 15.6-45.6-42-28 52-.5 16.2-45.4 16.4 45.3h52l-41.8 28.5 16 45.4z"/>
+  <g class="cls-1">
+    <g>
+      <path class="cls-6" d="M0,0h640v480H0V0Z"/>
+      <path class="cls-4" d="M92.5,0h477.2v480H92.4V0Z"/>
+      <path class="cls-5" d="M323,0h317v225.3h-317V0Z"/>
+      <path class="cls-7" d="M0,225.3h323.1v254.7H0v-254.7ZM214.8,177.7l-42-29.4-41.7,29.6,15.5-48-41.6-29.9,51.6-.4,16-48,16.3,47.9h51.6l-41.5,30,15.9,48v.2Z"/>
+      <path class="cls-3" d="M516.9,413.9l-42.4-27.7-42.1,28,15.6-45.6-42-28,52-.5,16.2-45.4,16.4,45.3h52l-41.8,28.5,16,45.4h0Z"/>
+    </g>
   </g>
 </svg>

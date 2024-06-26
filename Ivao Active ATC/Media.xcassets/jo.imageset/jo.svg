@@ -1,16 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-jo" viewBox="0 0 640 480">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="flag-icons-jo" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 640 480">
   <defs>
-    <clipPath id="jo-a">
-      <path fill-opacity=".7" d="M-117.8 0h682.6v512h-682.6z"/>
+    <style>
+      .cls-1 {
+        clip-path: url(#clippath);
+      }
+
+      .cls-2 {
+        fill: none;
+      }
+
+      .cls-2, .cls-3, .cls-4, .cls-5, .cls-6 {
+        stroke-width: 0px;
+      }
+
+      .cls-3 {
+        fill: #000001;
+      }
+
+      .cls-3, .cls-4, .cls-5, .cls-6 {
+        fill-rule: evenodd;
+      }
+
+      .cls-4 {
+        fill: #090;
+      }
+
+      .cls-5 {
+        fill: #fff;
+      }
+
+      .cls-6 {
+        fill: red;
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-2" x="0" y="0" width="639.9" height="480"/>
     </clipPath>
   </defs>
-  <g clip-path="url(#jo-a)" transform="translate(110.5)scale(.9375)">
-    <g fill-rule="evenodd" stroke-width="1pt">
-      <path fill="#000001" d="M-117.8 0h1024v170.7h-1024z"/>
-      <path fill="#fff" d="M-117.8 170.7h1024v170.6h-1024z"/>
-      <path fill="#090" d="M-117.8 341.3h1024V512h-1024z"/>
-      <path fill="red" d="m-117.8 512 512-256-512-256z"/>
-      <path fill="#fff" d="m24.5 289 5.7-24.9H4.7l23-11-15.9-19.9 23 11 5.6-24.8 5.7 24.9L69 233.2l-16 19.9 23 11H50.6l5.7 24.9-15.9-20z"/>
+  <g class="cls-1">
+    <g>
+      <path class="cls-3" d="M0,0h639.9v160H0V0Z"/>
+      <path class="cls-5" d="M0,160h639.9v159.9H0v-159.9Z"/>
+      <path class="cls-4" d="M0,320h639.9v160H0v-160Z"/>
+      <path class="cls-6" d="M0,480l480-240L0,0v480Z"/>
+      <path class="cls-5" d="M133.5,270.9l5.3-23.3h-23.9l21.6-10.3-14.9-18.7,21.6,10.3,5.2-23.3,5.3,23.3,21.5-10.4-15,18.7,21.6,10.3h-23.8l5.3,23.3-14.9-18.8-14.9,18.8Z"/>
     </g>
   </g>
 </svg>

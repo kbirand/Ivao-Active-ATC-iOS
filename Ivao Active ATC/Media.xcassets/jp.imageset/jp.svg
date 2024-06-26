@@ -1,11 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-jp" viewBox="0 0 640 480">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="flag-icons-jp" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 640 480">
   <defs>
-    <clipPath id="jp-a">
-      <path fill-opacity=".7" d="M-88 32h640v480H-88z"/>
+    <style>
+      .cls-1 {
+        clip-path: url(#clippath);
+      }
+
+      .cls-2 {
+        fill: none;
+      }
+
+      .cls-2, .cls-3, .cls-4 {
+        stroke-width: 0px;
+      }
+
+      .cls-3 {
+        fill: #bc002d;
+      }
+
+      .cls-4 {
+        fill: #fff;
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-2" width="640" height="480"/>
     </clipPath>
   </defs>
-  <g fill-rule="evenodd" stroke-width="1pt" clip-path="url(#jp-a)" transform="translate(88 -32)">
-    <path fill="#fff" d="M-128 32h720v480h-720z"/>
-    <circle cx="523.1" cy="344.1" r="194.9" fill="#bc002d" transform="translate(-168.4 8.6)scale(.76554)"/>
+  <g class="cls-1">
+    <rect class="cls-4" width="640" height="480"/>
+    <circle class="cls-3" cx="320.1" cy="240" r="149.2"/>
   </g>
 </svg>
