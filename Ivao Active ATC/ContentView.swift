@@ -3,6 +3,9 @@ import UIKit
 import Foundation
 import Combine
 import MapKit
+import SQLite3
+import CoreLocation
+
 
 extension CLLocationDegrees {
     static func fromKilometers(_ km: Double) -> CLLocationDegrees {
@@ -645,7 +648,6 @@ struct ATCInfoView: View {
                 .foregroundColor(.secondary)
             HStack(spacing: 5) {
                 if let counts = viewModel.pilotCounts[atc.callsign] {
-                    
                     if atc.atcSession.position == "CTR" || atc.atcSession.position == "FSS" {
                         if counts.inRegion != 0 {
                             Text("\(counts.inRegion)")
@@ -661,10 +663,10 @@ struct ATCInfoView: View {
                             Text("\(counts.outbound)")
                                 .foregroundColor(.red)
                         } else {
-                            Text("0 / 0")
+                            Text("0")
                         }
                     }
-                   
+                    
                 }
             }
         }
@@ -676,14 +678,20 @@ struct ATCMapView: View {
     let cCode : String = ""
     let polygonData: [WelcomeElement]
     let pilots: [Pilot]
+    
+    @StateObject private var airportManager = AirportDataManager.shared
+    @State private var pilotRoutes: [RouteData] = []
+    @State private var debugMessage: String = ""
     @State private var mapRotation: Double = 0
     @State private var position: MapCameraPosition = .automatic
     @GestureState private var gestureRotation: Double = 0
+    @State private var showAlert = false
+    @State private var alertMessage = ""
     
     private let towerRadius: CLLocationDegrees = .fromKilometers(9.3)
     
     var body: some View {
-        VStack {
+        ZStack {
             Map(position: $position) {
                 ForEach(pilots, id: \.id) { pilot in
                     if let lastTrack = pilot.lastTrack {
@@ -693,120 +701,122 @@ struct ATCMapView: View {
                                 .scaledToFit()
                                 .frame(width: 30, height: 30)
                                 .rotationEffect(Angle(degrees: Double(lastTrack.heading) - mapRotation))
+                                .onHover { isHovering in
+                                    if isHovering {
+                                        debugMessage = "Callsign: \(pilot.callsign)"
+                                        if let route = calculateRouteData(for: pilot) {
+                                            pilotRoutes = [route]
+                                        }
+                                    } else {
+                                        debugMessage = ""
+                                        pilotRoutes.removeAll()
+                                    }
+                                }
                         } label: {
                             Text(pilot.callsign)
                         }
                     }
                 }
-                ForEach(polygonData, id: \.id) { element in
-                    switch element.atcSession.position {
-                    case .twr:
-                        if let latitude = element.atcPosition?.airport.latitude,
-                           let longitude = element.atcPosition?.airport.longitude {
-                            MapCircle(center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-                                      radius: towerRadius * 111320) // Convert back to meters
-                            .stroke(.red, lineWidth: 2)
-                            .foregroundStyle(.red.opacity(0.1))
-                        }
-                    case .app:
-                        if let polygonCoordinates = getPolygonCoordinates(for: element), !polygonCoordinates.isEmpty {
-                            MapPolygon(coordinates: polygonCoordinates)
-                                .stroke(.blue, lineWidth: 2)
-                                .foregroundStyle(.blue.opacity(0.1))
-                        }
-                    case .gnd:
-                        if let latitude = element.atcPosition?.airport.latitude,
-                           let longitude = element.atcPosition?.airport.longitude {
-                            MapPolygon(coordinates: createStarCoordinates(
-                                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-                                radius: towerRadius * 111320,
-                                points: 4,
-                                rotation: 0
-                            ))
-                            .stroke(.yellow, lineWidth: 2)
-                            .foregroundStyle(.yellow.opacity(0.2))
-                        }
-                    case .del:
-                        if let latitude = element.atcPosition?.airport.latitude,
-                           let longitude = element.atcPosition?.airport.longitude {
-                            MapPolygon(coordinates: createStarCoordinates(
-                                center: CLLocationCoordinate2D(latitude: latitude, longitude: longitude),
-                                radius: towerRadius * 111320,
-                                points: 4,
-                                rotation: .pi / 4
-                            ))
-                            .stroke(Color(red: 1, green: 1, blue: 0.8), lineWidth: 2)
-                            .foregroundStyle(Color(red: 1, green: 1, blue: 0.8).opacity(0.2))
-                        }
-                    case .ctr, .fss:
-                        if let polygonCoordinates = getPolygonCoordinates(for: element), !polygonCoordinates.isEmpty {
-                            MapPolygon(coordinates: polygonCoordinates)
-                                .stroke(Color(red: 1, green: 1, blue: 1).opacity(0.5), lineWidth: 2) // Dark blue
-                                .foregroundStyle(Color(red: 1, green: 1, blue: 1).opacity(0.1))
-                        }
-                    default:
-                        // Handle other cases or do nothing
-                        EmptyMapContent()
-                    }
-                }
+                // ... (keep all other map content)
                 
-                ForEach(atcs, id: \.id) { atc in
-                    Annotation(coordinate: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude)) {
-                        Text(atc.callsign)
-                            .font(.system(size: 10, weight: .regular))
-                            .padding(5)
-                            .background(Color.black.opacity(0.4))
-                            .foregroundColor(.white)
-                            .cornerRadius(5)
+                ForEach(pilotRoutes, id: \.id) { routeData in
+                    MapPolyline(coordinates: [routeData.departure, routeData.current])
+                        .stroke(.green, lineWidth: 2)
+                    MapPolyline(coordinates: [routeData.current, routeData.arrival])
+                        .stroke(.blue, lineWidth: 2)
+                    
+                    Annotation(coordinate: routeData.departure) {
+                        Image(systemName: "airplane.departure")
+                            .foregroundColor(.green)
                     } label: {
-                        EmptyView()
+                        Text(routeData.departureId)
+                    }
+                    
+                    Annotation(coordinate: routeData.arrival) {
+                        Image(systemName: "airplane.arrival")
+                            .foregroundColor(.blue)
+                    } label: {
+                        Text(routeData.arrivalId)
                     }
                 }
             }
             .mapStyle(.hybrid(elevation: .realistic))
             .onMapCameraChange { context in
-                
                 mapRotation = context.camera.heading
+            }
+            .ignoresSafeArea()
+            
+            VStack {
+                Spacer()
+                if !debugMessage.isEmpty {
+                    Text(debugMessage)
+                        .padding()
+                        .background(Color.black.opacity(0.7))
+                        .foregroundColor(.white)
+                        .cornerRadius(10)
+                        .padding()
+                }
+            }
+        }
+        .alert(isPresented: $showAlert) {
+            Alert(title: Text("Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
+        }
+        .onChange(of: airportManager.lastError) { oldVlue,newValue in
+            if let error = newValue {
+                alertMessage = error
+                showAlert = true
             }
         }
     }
     
-    private func getPolygonCoordinates(for element: WelcomeElement) -> [CLLocationCoordinate2D]? {
-        let coordinates: [RegionMap]?
-        if let regionMap = element.atcPosition?.regionMap {
-            coordinates = regionMap
-        } else if let regionMap = element.subcenter?.regionMap {
-            coordinates = regionMap
-        } else {
+    // ... (keep all other methods: getPolygonCoordinates, normalizeLongitude, createStarCoordinates)
+    
+    private func calculateRouteData(for pilot: Pilot) -> RouteData? {
+        debugMessage += "\nCalculating route for pilot: \(pilot.callsign)"
+        
+        guard let flightPlan = pilot.flightPlan else {
+            debugMessage += "\nNo flight plan found for pilot: \(pilot.callsign)"
             return nil
         }
         
-        return coordinates?.compactMap { coordinate in
-            let normalizedLng = normalizeLongitude(coordinate.lng)
-            return CLLocationCoordinate2D(latitude: coordinate.lat, longitude: normalizedLng)
+        guard let departureId = flightPlan.departureId else {
+            debugMessage += "\nNo departure ID found in flight plan"
+            return nil
         }
-    }
-    
-    private func normalizeLongitude(_ longitude: Double) -> Double {
-        var normalized = longitude
-        while normalized < -180 {
-            normalized += 360
+        
+        guard let arrivalId = flightPlan.arrivalId else {
+            debugMessage += "\nNo arrival ID found in flight plan"
+            return nil
         }
-        while normalized > 180 {
-            normalized -= 360
+        
+        guard let lastTrack = pilot.lastTrack else {
+            debugMessage += "\nNo last track found for pilot"
+            return nil
         }
-        return normalized
-    }
-    
-    private func createStarCoordinates(center: CLLocationCoordinate2D, radius: CLLocationDegrees, points: Int, rotation: Double) -> [CLLocationCoordinate2D] {
-        let angleIncrement = .pi * 2 / Double(points * 2)
-        return (0..<(points * 2)).map { i in
-            let angle = Double(i) * angleIncrement - .pi / 2 + rotation
-            let r = i % 2 == 0 ? radius : radius * 0.3
-            let lat = center.latitude + (cos(angle) * r) / 111320
-            let lon = center.longitude + (sin(angle) * r) / (111320 * cos(center.latitude * .pi / 180))
-            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        
+        debugMessage += "\nDeparture: \(departureId)"
+        guard let departureCoords = airportManager.getAirportCoordinates(ident: departureId) else {
+            debugMessage += "\nFailed to get coordinates for departure: \(departureId)"
+            return nil
         }
+        
+        debugMessage += "\nArrival: \(arrivalId)"
+        guard let arrivalCoords = airportManager.getAirportCoordinates(ident: arrivalId) else {
+            debugMessage += "\nFailed to get coordinates for arrival: \(arrivalId)"
+            return nil
+        }
+        
+        let current = CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)
+        
+        debugMessage += "\nSuccessfully calculated route data"
+        return RouteData(
+            id: UUID(),  // Add this line to create a unique identifier for each route
+            departure: departureCoords,
+            current: current,
+            arrival: arrivalCoords,
+            departureId: departureId,
+            arrivalId: arrivalId
+        )
     }
 }
 
@@ -1210,4 +1220,177 @@ struct FlightPlan: Codable {
     let peopleOnBoard: Int
     let createdAt: String
     let aircraftEquipments, aircraftTransponderTypes: String
+}
+
+struct RouteData {
+    let id: UUID
+    let departure: CLLocationCoordinate2D
+    let current: CLLocationCoordinate2D
+    let arrival: CLLocationCoordinate2D
+    let departureId: String
+    let arrivalId: String
+}
+
+class AirportDataManager: ObservableObject {
+    static let shared = AirportDataManager()
+    private var db: OpaquePointer?
+    
+    @Published var lastError: String?
+    
+    private init() {
+        openDatabase()
+    }
+    
+    private func openDatabase() {
+        guard let dbPath = Bundle.main.path(forResource: "airport", ofType: "db3") else {
+            lastError = "Database file not found in bundle"
+            print("Error: \(lastError ?? "")")
+            return
+        }
+        
+        print("Attempting to open database at path: \(dbPath)")
+        
+        if sqlite3_open(dbPath, &db) != SQLITE_OK {
+            lastError = "Error opening database: \(String(cString: sqlite3_errmsg(db)))"
+            print("Error: \(lastError ?? "")")
+            return
+        }
+        
+        print("Successfully opened database at \(dbPath)")
+    }
+    
+    func getAirportCoordinates(ident: String) -> CLLocationCoordinate2D? {
+        print("Attempting to get coordinates for airport: \(ident)")
+        
+        guard let db = db else {
+            lastError = "Database connection is not initialized"
+            print("Error: \(lastError ?? "")")
+            return nil
+        }
+        
+        let queryString = "SELECT latitude_deg, longitude_deg FROM airports WHERE ident = ?"
+        var statement: OpaquePointer?
+        
+        guard sqlite3_prepare_v2(db, queryString, -1, &statement, nil) == SQLITE_OK else {
+            lastError = "Error preparing statement: \(String(cString: sqlite3_errmsg(db)))"
+            print("Error: \(lastError ?? "")")
+            return nil
+        }
+        
+        sqlite3_bind_text(statement, 1, (ident as NSString).utf8String, -1, nil)
+        
+        if sqlite3_step(statement) == SQLITE_ROW {
+            let latitude = sqlite3_column_double(statement, 0)
+            let longitude = sqlite3_column_double(statement, 1)
+            sqlite3_finalize(statement)
+            print("Found coordinates for \(ident): (\(latitude), \(longitude))")
+            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+        }
+        
+        sqlite3_finalize(statement)
+        lastError = "No coordinates found for airport with ident: \(ident)"
+        print("Error: \(lastError ?? "")")
+        return nil
+    }
+    
+    deinit {
+        if let db = db {
+            sqlite3_close(db)
+        }
+    }
+}
+
+// MARK: - MapView
+
+struct MapView: UIViewRepresentable {
+    @Binding var region: MKCoordinateRegion
+    let routeData: RouteData?
+    let pilots: [Pilot]
+    let onPilotSelect: (Pilot) -> Void
+    
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView()
+        mapView.delegate = context.coordinator
+        return mapView
+    }
+    
+    func updateUIView(_ uiView: MKMapView, context: Context) {
+        uiView.setRegion(region, animated: true)
+        
+        // Remove all overlays and annotations
+        uiView.removeOverlays(uiView.overlays)
+        uiView.removeAnnotations(uiView.annotations)
+        
+        // Add pilot annotations
+        for pilot in pilots {
+            if let lastTrack = pilot.lastTrack {
+                let annotation = PilotAnnotation(pilot: pilot)
+                annotation.coordinate = CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)
+                uiView.addAnnotation(annotation)
+            }
+        }
+        
+        // Add route if available
+        if let routeData = routeData {
+            let departureToCurrentPolyline = MKPolyline(coordinates: [routeData.departure, routeData.current], count: 2)
+            let currentToArrivalPolyline = MKPolyline(coordinates: [routeData.current, routeData.arrival], count: 2)
+            
+            uiView.addOverlay(departureToCurrentPolyline)
+            uiView.addOverlay(currentToArrivalPolyline)
+            
+            // Add departure and arrival annotations
+            let departureAnnotation = MKPointAnnotation()
+            departureAnnotation.coordinate = routeData.departure
+            departureAnnotation.title = routeData.departureId
+            
+            let arrivalAnnotation = MKPointAnnotation()
+            arrivalAnnotation.coordinate = routeData.arrival
+            arrivalAnnotation.title = routeData.arrivalId
+            
+            uiView.addAnnotations([departureAnnotation, arrivalAnnotation])
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: MapView
+        
+        init(_ parent: MapView) {
+            self.parent = parent
+        }
+        
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = .blue
+                renderer.lineWidth = 3
+                return renderer
+            }
+            return MKOverlayRenderer(overlay: overlay)
+        }
+        
+        
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if let pilotAnnotation = view.annotation as? PilotAnnotation {
+                parent.onPilotSelect(pilotAnnotation.pilot)
+            }
+        }
+    }
+}
+
+class PilotAnnotation: NSObject, MKAnnotation {
+    let pilot: Pilot
+    var coordinate: CLLocationCoordinate2D
+    
+    init(pilot: Pilot) {
+        self.pilot = pilot
+        self.coordinate = CLLocationCoordinate2D(latitude: pilot.lastTrack?.latitude ?? 0, longitude: pilot.lastTrack?.longitude ?? 0)
+    }
+    
+    var title: String? {
+        return pilot.callsign
+    }
 }
