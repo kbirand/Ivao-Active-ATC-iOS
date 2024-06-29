@@ -1,17 +1,59 @@
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-za" viewBox="0 0 640 480">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="flag-icons-za" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 640 480">
   <defs>
-    <clipPath id="za-a">
-      <path fill-opacity=".7" d="M-71.9 0h682.7v512H-71.9z"/>
+    <style>
+      .cls-1 {
+        clip-path: url(#clippath);
+      }
+
+      .cls-2 {
+        fill: none;
+      }
+
+      .cls-2, .cls-3, .cls-4, .cls-5, .cls-6, .cls-7, .cls-8 {
+        stroke-width: 0px;
+      }
+
+      .cls-3 {
+        fill: #000c8a;
+      }
+
+      .cls-3, .cls-4, .cls-5, .cls-6, .cls-7, .cls-8 {
+        fill-rule: evenodd;
+      }
+
+      .cls-4 {
+        fill: #000001;
+      }
+
+      .cls-5 {
+        fill: #007847;
+      }
+
+      .cls-6 {
+        fill: #ffb915;
+      }
+
+      .cls-7 {
+        fill: #fff;
+      }
+
+      .cls-8 {
+        fill: #e1392d;
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-2" x="0" width="640" height="480"/>
     </clipPath>
   </defs>
-  <g clip-path="url(#za-a)" transform="translate(67.4)scale(.93748)">
-    <g fill-rule="evenodd" stroke-width="1pt">
-      <path fill="#000001" d="M-71.9 407.8V104.4L154 256.1z"/>
-      <path fill="#000c8a" d="m82.2 512.1 253.6-170.6H696V512H82.2z"/>
-      <path fill="#e1392d" d="M66 0h630v170.8H335.7S69.3-1.7 66 0"/>
-      <path fill="#ffb915" d="M-71.9 64v40.4L154 256-72 407.8v40.3l284.5-192z"/>
-      <path fill="#007847" d="M-71.9 64V0h95l301.2 204h371.8v104.2H324.3L23 512h-94.9v-63.9l284.4-192L-71.8 64z"/>
-      <path fill="#fff" d="M23 0h59.2l253.6 170.7H696V204H324.3zm0 512.1h59.2l253.6-170.6H696v-33.2H324.3L23 512z"/>
+  <g class="cls-1">
+    <g>
+      <path class="cls-4" d="M0,382.3V97.9l211.8,142.2L0,382.3Z"/>
+      <path class="cls-3" d="M144.5,480.1l237.7-159.9h257.8v159.8H144.5Z"/>
+      <path class="cls-8" d="M129.3,0h510.7v160.1h-270.7S132.2-1.6,129.3,0"/>
+      <path class="cls-6" d="M0,60v37.9l211.8,142.1L0,382.3v37.8l266.7-180L0,60Z"/>
+      <path class="cls-5" d="M0,60V0h89.1l282.4,191.2h268.6v97.7h-268.6L89,480H0v-59.9l266.6-180L0,60H0Z"/>
+      <path class="cls-7" d="M89,0h55.5l237.7,160h257.8v31.2h-268.6L89,0ZM89,480.1h55.5l237.7-159.9h257.8v-31.1h-268.6L89,480h0Z"/>
     </g>
   </g>
 </svg>

@@ -25,7 +25,17 @@
         "CCode":"IS"
     },
     {
+        "Code":"CD",
+        "Country":"United Kingdom",
+        "CCode":"UK"
+    },
+    {
         "Code":"CY",
+        "Country":"Canada",
+        "CCode":"CA"
+    },
+    {
+        "Code":"CZ",
         "Country":"Canada",
         "CCode":"CA"
     },
@@ -960,6 +970,11 @@
         "CCode":"RU"
     },
     {
+        "Code":"UD",
+        "Country":"Armenia",
+        "CCode":"AM"
+    },
+    {
         "Code":"UG",
         "Country":"Armenia and Georgia",
         "CCode":"AM"
@@ -1188,5 +1203,10 @@
         "Code":"ZY",
         "Country":"China",
         "CCode":"CN"
+    },
+    {
+        "Code":"Z1",
+        "Country":"Lebonan",
+        "CCode":"LB"
     }
 ]

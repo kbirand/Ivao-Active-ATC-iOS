@@ -666,12 +666,15 @@ struct ATCInfoView: View {
                             Text("0")
                         }
                     }
-                    
                 }
             }
         }
     }
 }
+
+import SwiftUI
+import MapKit
+import CoreLocation
 
 struct ATCMapView: View {
     let atcs: [Atc]
@@ -683,7 +686,7 @@ struct ATCMapView: View {
     @State private var pilotRoutes: [RouteData] = []
     @State private var debugMessage: String = ""
     @State private var mapRotation: Double = 0
-    @State private var position: MapCameraPosition = .automatic
+    @State private var position: MapCameraPosition
     @GestureState private var gestureRotation: Double = 0
     @State private var showAlert = false
     @State private var alertMessage = ""
@@ -692,175 +695,127 @@ struct ATCMapView: View {
     
     private let towerRadius: CLLocationDegrees = .fromKilometers(9.3)
     
+    init(atcs: [Atc], polygonData: [WelcomeElement], pilots: [Pilot]) {
+        self.atcs = atcs
+        self.polygonData = polygonData
+        self.pilots = pilots
+        
+        // Load the last position from UserDefaults or default to Turkey
+        let savedLatitude = UserDefaults.standard.double(forKey: "mapLatitude")
+        let savedLongitude = UserDefaults.standard.double(forKey: "mapLongitude")
+        let savedZoom = UserDefaults.standard.double(forKey: "mapZoom")
+        
+        if savedLatitude != 0 && savedLongitude != 0 && savedZoom != 0 {
+            _position = State(initialValue: .camera(MapCamera(centerCoordinate: CLLocationCoordinate2D(latitude: savedLatitude, longitude: savedLongitude), distance: savedZoom)))
+        } else {
+            // Default to Turkey
+            _position = State(initialValue: .camera(MapCamera(centerCoordinate: CLLocationCoordinate2D(latitude: 39.9334, longitude: 32.8597), distance: 1000000)))
+        }
+    }
+    
     var body: some View {
-        ZStack {
-            Map(position: $position) {
-                ForEach(pilots, id: \.id) { pilot in
-                    if let lastTrack = pilot.lastTrack {
-                        Annotation(coordinate: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)) {
-                            Image("plane")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 30, height: 30)
-                                .rotationEffect(Angle(degrees: Double(lastTrack.heading) - mapRotation))
-                                .onHover { hovering in
-                                    if horizontalSizeClass == .regular {  // Likely a desktop
-                                        isHovering = hovering
-                                        if hovering {
-                                            selectedPilot = pilot
-                                            updateRouteAndDebugMessage(for: pilot)
-                                        } else {
-                                            clearSelection()
-                                        }
-                                    }
-                                }
-                                .onTapGesture {
-                                    if selectedPilot?.id == pilot.id {
-                                        selectedPilot = nil
-                                    } else {
+        Map(position: $position) {
+            ForEach(pilots, id: \.id) { pilot in
+                if let lastTrack = pilot.lastTrack {
+                    Annotation(coordinate: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)) {
+                        Image("plane")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 30, height: 30)
+                            .rotationEffect(Angle(degrees: Double(lastTrack.heading) - mapRotation))
+                            .onHover { hovering in
+                                if horizontalSizeClass == .regular {  // Likely a desktop
+                                    isHovering = hovering
+                                    if hovering {
                                         selectedPilot = pilot
+                                        updateRouteAndDebugMessage(for: pilot)
+                                    } else {
+                                        clearSelection()
                                     }
                                 }
-                        } label: {
-                            Text(pilot.callsign)
-                        }
+                            }
+                            .onTapGesture {
+                                if selectedPilot?.id == pilot.id {
+                                    selectedPilot = nil
+                                } else {
+                                    selectedPilot = pilot
+                                }
+                            }
+                    } label: {
+                        Text(pilot.callsign)
                     }
+                }
+            }
+            
+            ForEach(atcs, id: \.id) { atc in
+                if let relevantPolygon = polygonData.first(where: { $0.callsign == atc.callsign }) {
+                    switch relevantPolygon.atcSession.position {
+                    case .twr:
+                        MapCircle(center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                                  radius: CLLocationDegrees.fromKilometers(9.3) * 111320)
+                        .stroke(.red, lineWidth: 2)
+                        .foregroundStyle(.red.opacity(0.1))
+                    case .gnd:
+                        MapPolygon(coordinates: createStarCoordinates(
+                            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                            radius: CLLocationDegrees.fromKilometers(9.3) * 111320,
+                            points: 4,
+                            rotation: 0
+                        ))
+                        .stroke(.yellow, lineWidth: 2)
+                        .foregroundStyle(.yellow.opacity(0.1))
+                    case .del:
+                        MapPolygon(coordinates: createStarCoordinates(
+                            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                            radius: CLLocationDegrees.fromKilometers(9.3) * 111320,
+                            points: 4,
+                            rotation: .pi / 4
+                        ))
+                        .stroke(Color(red: 1, green: 1, blue: 0.8), lineWidth: 2)
+                        .foregroundStyle(Color(red: 1, green: 1, blue: 0.8).opacity(0.2))
+                    case .app, .ctr, .fss:
+                        if let polygonCoordinates = getPolygonCoordinates(for: relevantPolygon), !polygonCoordinates.isEmpty {
+                            MapPolygon(coordinates: polygonCoordinates)
+                                .stroke(.blue, lineWidth: 2)
+                                .foregroundStyle(.blue.opacity(0.1))
+                        }
+                    default:
+                        EmptyMapContent()
+                    }
+                }
+            }
+
+            ForEach(pilotRoutes, id: \.id) { routeData in
+                MapPolyline(coordinates: [routeData.departure, routeData.current])
+                    .stroke(.green, lineWidth: 2)
+                MapPolyline(coordinates: [routeData.current, routeData.arrival])
+                    .stroke(.blue, lineWidth: 2)
+                
+                Annotation(coordinate: routeData.departure) {
+                    Image(systemName: "airplane.departure")
+                        .foregroundColor(.green)
+                } label: {
+                    Text(routeData.departureId)
                 }
                 
-                ForEach(atcs, id: \.id) { atc in
-                    if let relevantPolygon = polygonData.first(where: { $0.callsign == atc.callsign }) {
-                        switch relevantPolygon.atcSession.position {
-                        case .twr:
-                            MapCircle(center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
-                                      radius: CLLocationDegrees.fromKilometers(9.3) * 111320)
-                            .stroke(.red, lineWidth: 2)
-                            .foregroundStyle(.red.opacity(0.1))
-                        case .gnd:
-                            MapPolygon(coordinates: createStarCoordinates(
-                                center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
-                                radius: CLLocationDegrees.fromKilometers(9.3) * 111320,
-                                points: 4,
-                                rotation: 0
-                            ))
-                            .stroke(.yellow, lineWidth: 2)
-                            .foregroundStyle(.yellow.opacity(0.1))
-                        case .del:
-                            MapPolygon(coordinates: createStarCoordinates(
-                                center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
-                                radius: CLLocationDegrees.fromKilometers(9.3) * 111320,
-                                points: 4,
-                                rotation: .pi / 4
-                            ))
-                            .stroke(Color(red: 1, green: 1, blue: 0.8), lineWidth: 2)
-                            .foregroundStyle(Color(red: 1, green: 1, blue: 0.8).opacity(0.2))
-                        case .app, .ctr, .fss:
-                            if let polygonCoordinates = getPolygonCoordinates(for: relevantPolygon), !polygonCoordinates.isEmpty {
-                                MapPolygon(coordinates: polygonCoordinates)
-                                    .stroke(.blue, lineWidth: 2)
-                                    .foregroundStyle(.blue.opacity(0.1))
-                            }
-                        default:
-                            EmptyMapContent()
-                        }
-                    }
-                }
-
-                ForEach(pilotRoutes, id: \.id) { routeData in
-                    MapPolyline(coordinates: [routeData.departure, routeData.current])
-                        .stroke(.green, lineWidth: 2)
-                    MapPolyline(coordinates: [routeData.current, routeData.arrival])
-                        .stroke(.blue, lineWidth: 2)
-                    
-                    Annotation(coordinate: routeData.departure) {
-                        Image(systemName: "airplane.departure")
-                            .foregroundColor(.green)
-                    } label: {
-                        Text(routeData.departureId)
-                    }
-                    
-                    Annotation(coordinate: routeData.arrival) {
-                        Image(systemName: "airplane.arrival")
-                            .foregroundColor(.blue)
-                    } label: {
-                        Text(routeData.arrivalId)
-                    }
-                }
-            }
-            .mapStyle(.hybrid(elevation: .realistic))
-            .onMapCameraChange { context in
-                mapRotation = context.camera.heading
-            }
-            .ignoresSafeArea()
-            
-            GeometryReader { geometry in
-                VStack {
-                    Spacer()
-                    
-                    if let selectedPilot = selectedPilot,
-                       let flightPlan = selectedPilot.flightPlan,
-                       let lastTrack = selectedPilot.lastTrack {
-                        
-                        VStack(alignment: .leading, spacing: 10) {
-                            // First row
-                            HStack {
-                                LabeledContent("Callsign:", value: selectedPilot.callsign)
-                                    .font(.system(size: 30))
-                                Spacer()
-                                LabeledContent("From/To:", value: "\(flightPlan.departureId ?? "N/A") → \(flightPlan.arrivalId ?? "N/A")")
-                                    .font(.system(size: 30))
-                            }
-                            
-                            Divider()
-                                .background(Color.white)
-                                .padding(.vertical, 5)
-                            
-                            // Second row
-                            HStack {
-                                LabeledContent("Speed:", value: flightPlan.speed)
-                                Spacer()
-                                LabeledContent("Flight Level:", value: flightPlan.level)
-                                Spacer()
-                                LabeledContent("Altitude:", value: "\(lastTrack.altitude) ft")
-                                Spacer()
-                                LabeledContent("EET:", value: formatEET(flightPlan.eet))
-                            }
-                            
-                            // Third row
-                            LabeledContent("Route:", value: flightPlan.route)
-                                .lineLimit(2)
-                                .truncationMode(.tail)
-                        }
-                        .padding()
-                        .background(Color.black.opacity(0.7))
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                        .frame(width: geometry.size.width * 0.9)
-                    }
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .bottom)
-            }
-            .safeAreaInset(edge: .bottom) {
-                Color.clear.frame(height: 30)
-            }
-            
-            // Add a close button for touch devices
-            if selectedPilot != nil && horizontalSizeClass == .compact {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button(action: clearSelection) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.title)
-                                .foregroundColor(.white)
-                                .background(Color.black.opacity(0.6))
-                                .clipShape(Circle())
-                        }
-                        .padding()
-                    }
-                    Spacer()
+                Annotation(coordinate: routeData.arrival) {
+                    Image(systemName: "airplane.arrival")
+                        .foregroundColor(.blue)
+                } label: {
+                    Text(routeData.arrivalId)
                 }
             }
         }
+        .mapStyle(.hybrid(elevation: .realistic))
+        .onMapCameraChange { context in
+            mapRotation = context.camera.heading
+            
+            // Save the new position
+            UserDefaults.standard.set(context.camera.centerCoordinate.latitude, forKey: "mapLatitude")
+            UserDefaults.standard.set(context.camera.centerCoordinate.longitude, forKey: "mapLongitude")
+            UserDefaults.standard.set(context.camera.distance, forKey: "mapZoom")
+        }
+        .ignoresSafeArea()
         .alert(isPresented: $showAlert) {
             Alert(title: Text("Error"), message: Text(alertMessage), dismissButton: .default(Text("OK")))
         }
@@ -941,32 +896,26 @@ struct ATCMapView: View {
     
     private func calculateRouteData(for pilot: Pilot) -> RouteData? {
         guard let flightPlan = pilot.flightPlan else {
-            //debugMessage += "\nNo flight plan found for pilot: \(pilot.callsign)"
             return nil
         }
         
         guard let departureId = flightPlan.departureId else {
-            //debugMessage += "\nNo departure ID found in flight plan"
             return nil
         }
         
         guard let arrivalId = flightPlan.arrivalId else {
-            //debugMessage += "\nNo arrival ID found in flight plan"
             return nil
         }
         
         guard let lastTrack = pilot.lastTrack else {
-            //debugMessage += "\nNo last track found for pilot"
             return nil
         }
         
         guard let departureCoords = airportManager.getAirportCoordinates(ident: departureId) else {
-            //debugMessage += "\nFailed to get coordinates for departure: \(departureId)"
             return nil
         }
         
         guard let arrivalCoords = airportManager.getAirportCoordinates(ident: arrivalId) else {
-            //debugMessage += "\nFailed to get coordinates for arrival: \(arrivalId)"
             return nil
         }
         
@@ -982,7 +931,6 @@ struct ATCMapView: View {
         )
     }
 }
-
 struct LabeledContent: View {
     let label: String
     let value: String
