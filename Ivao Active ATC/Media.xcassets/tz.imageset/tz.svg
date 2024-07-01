@@ -1,13 +1,31 @@
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-tz" viewBox="0 0 640 480">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="flag-icons-tz" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 640 480">
   <defs>
-    <clipPath id="tz-a">
-      <path fill-opacity=".7" d="M10 0h160v120H10z"/>
-    </clipPath>
+    <style>
+      .cls-1 {
+        fill: #000001;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4 {
+        fill-rule: evenodd;
+        stroke-width: 0px;
+      }
+
+      .cls-2 {
+        fill: #090;
+      }
+
+      .cls-3 {
+        fill: #ff0;
+      }
+
+      .cls-4 {
+        fill: #09f;
+      }
+    </style>
   </defs>
-  <g fill-rule="evenodd" stroke-width="1pt" clip-path="url(#tz-a)" transform="matrix(4 0 0 4 -40 0)">
-    <path fill="#09f" d="M0 0h180v120H0z"/>
-    <path fill="#090" d="M0 0h180L0 120z"/>
-    <path fill="#000001" d="M0 120h40l140-95V0h-40L0 95z"/>
-    <path fill="#ff0" d="M0 91.5 137.2 0h13.5L0 100.5zM29.3 120 180 19.5v9L42.8 120z"/>
-  </g>
+  <path class="cls-4" d="M0,0h640v480H0V0Z"/>
+  <path class="cls-2" d="M0,0h640L0,480V0Z"/>
+  <path class="cls-1" d="M0,480h142.2L640,100V0h-142.2L0,380v100Z"/>
+  <path class="cls-3" d="M0,366L487.8,0h48L0,402v-36ZM104.2,480L640,78v36L152.2,480h-48Z"/>
 </svg>

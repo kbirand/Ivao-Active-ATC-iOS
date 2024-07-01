@@ -1,13 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" id="flag-icons-ly" viewBox="0 0 640 480">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="flag-icons-ly" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 640 480">
   <defs>
-    <clipPath id="ly-a">
-      <path d="M166.7-20h666.6v500H166.7z"/>
+    <style>
+      .cls-1 {
+        fill: #e70013;
+      }
+
+      .cls-1, .cls-2, .cls-3, .cls-4, .cls-5 {
+        stroke-width: 0px;
+      }
+
+      .cls-6 {
+        clip-path: url(#clippath);
+      }
+
+      .cls-2 {
+        fill: none;
+      }
+
+      .cls-3 {
+        fill: #239e46;
+      }
+
+      .cls-4 {
+        fill: #000001;
+      }
+
+      .cls-5 {
+        fill: #fff;
+      }
+    </style>
+    <clipPath id="clippath">
+      <rect class="cls-2" x="0" width="639.9" height="480"/>
     </clipPath>
   </defs>
-  <g clip-path="url(#ly-a)" transform="matrix(.96 0 0 .96 -160 19.2)">
-    <path fill="#239e46" d="M0-20h1000v500H0z"/>
-    <path fill="#000001" d="M0-20h1000v375H0z"/>
-    <path fill="#e70013" d="M0-20h1000v125H0z"/>
-    <path fill="#fff" d="M544.2 185.8a54.3 54.3 0 1 0 0 88.4 62.5 62.5 0 1 1 0-88.4M530.4 230l84.1-27.3-52 71.5v-88.4l52 71.5z"/>
+  <g class="cls-6">
+    <g>
+      <path class="cls-3" d="M0,0h640v480H0V0Z"/>
+      <path class="cls-4" d="M0,0h640v360H0V0Z"/>
+      <path class="cls-1" d="M0,0h640v120H0V0Z"/>
+      <path class="cls-5" d="M328.7,197.6c-23.4-16.7-56-11.3-72.7,12.2-16.7,23.4-11.3,56,12.2,72.7,18.1,12.9,42.4,12.9,60.6,0-23.4,23.4-61.4,23.4-84.9,0-23.4-23.4-23.4-61.4,0-84.9,23.4-23.4,61.4-23.4,84.8,0M315.4,240l80.7-26.2-49.9,68.6v-84.9l49.9,68.6-80.7-26.2Z"/>
+    </g>
   </g>
 </svg>

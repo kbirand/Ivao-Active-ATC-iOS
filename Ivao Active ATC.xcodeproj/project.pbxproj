@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		2B026BDF2C2C0394007B9E15 /* airport.db3 in Resources */ = {isa = PBXBuildFile; fileRef = 2B026BDE2C2C0394007B9E15 /* airport.db3 */; };
+		2B3B8DB02C307DA8001EE64F /* ATCMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3B8DAF2C307DA8001EE64F /* ATCMapView.swift */; };
+		2B3B8DB22C307E80001EE64F /* DetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3B8DB12C307E80001EE64F /* DetailView.swift */; };
+		2B3B8DB42C307EE9001EE64F /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3B8DB32C307EE9001EE64F /* Models.swift */; };
 		2BAD51FA2C1F551D0017E9EE /* Ivao_Active_ATCApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BAD51F92C1F551D0017E9EE /* Ivao_Active_ATCApp.swift */; };
 		2BAD51FC2C1F551D0017E9EE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BAD51FB2C1F551D0017E9EE /* ContentView.swift */; };
 		2BAD51FE2C1F551E0017E9EE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2BAD51FD2C1F551E0017E9EE /* Assets.xcassets */; };
@@ -17,6 +20,9 @@
 
 /* Begin PBXFileReference section */
 		2B026BDE2C2C0394007B9E15 /* airport.db3 */ = {isa = PBXFileReference; lastKnownFileType = file; path = airport.db3; sourceTree = "<group>"; };
+		2B3B8DAF2C307DA8001EE64F /* ATCMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ATCMapView.swift; sourceTree = "<group>"; };
+		2B3B8DB12C307E80001EE64F /* DetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailView.swift; sourceTree = "<group>"; };
+		2B3B8DB32C307EE9001EE64F /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		2BAD51F62C1F551D0017E9EE /* Ivao Active ATC.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ivao Active ATC.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2BAD51F92C1F551D0017E9EE /* Ivao_Active_ATCApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Ivao_Active_ATCApp.swift; sourceTree = "<group>"; };
 		2BAD51FB2C1F551D0017E9EE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -61,8 +67,11 @@
 				2BEAF9C92C241C2D00844722 /* countries.json */,
 				2BAD51F92C1F551D0017E9EE /* Ivao_Active_ATCApp.swift */,
 				2BAD51FB2C1F551D0017E9EE /* ContentView.swift */,
+				2B3B8DB32C307EE9001EE64F /* Models.swift */,
 				2BAD51FD2C1F551E0017E9EE /* Assets.xcassets */,
 				2B026BDE2C2C0394007B9E15 /* airport.db3 */,
+				2B3B8DAF2C307DA8001EE64F /* ATCMapView.swift */,
+				2B3B8DB12C307E80001EE64F /* DetailView.swift */,
 			);
 			path = "Ivao Active ATC";
 			sourceTree = "<group>";
@@ -140,7 +149,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				2BAD51FC2C1F551D0017E9EE /* ContentView.swift in Sources */,
+				2B3B8DB22C307E80001EE64F /* DetailView.swift in Sources */,
+				2B3B8DB02C307DA8001EE64F /* ATCMapView.swift in Sources */,
 				2BAD51FA2C1F551D0017E9EE /* Ivao_Active_ATCApp.swift in Sources */,
+				2B3B8DB42C307EE9001EE64F /* Models.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
