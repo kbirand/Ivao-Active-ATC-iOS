@@ -1,9 +1,7 @@
 import SwiftUI
 import UIKit
 import Foundation
-import Combine
 import MapKit
-import SQLite3
 import CoreLocation
 
 
@@ -13,20 +11,6 @@ extension CLLocationDegrees {
     }
 }
 
-extension JSONDecoder {
-    static func customDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dataDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let stringData = try container.decode(String.self)
-            guard let data = stringData.data(using: .utf8) else {
-                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid UTF-8 data"))
-            }
-            return data
-        }
-        return decoder
-    }
-}
 
 extension View {
     func hiddenNavigationBarStyle() -> some View {
@@ -34,45 +18,6 @@ extension View {
     }
 }
 
-extension ATCViewModel {
-    func isPointInPolygon(point: CLLocationCoordinate2D, polygon: [RegionMap]) -> Bool {
-        var isInside = false
-        let nvert = polygon.count
-        var j = nvert - 1
-        
-        for i in 0..<nvert {
-            if ((polygon[i].lat > point.latitude) != (polygon[j].lat > point.latitude)) &&
-                (point.longitude < (polygon[j].lng - polygon[i].lng) * (point.latitude - polygon[i].lat) / (polygon[j].lat - polygon[i].lat) + polygon[i].lng) {
-                isInside = !isInside
-            }
-            j = i
-        }
-        
-        return isInside
-    }
-    
-    func countPilotsInRegion(for atc: Atc) -> Int {
-        guard let element = polygonData.first(where: { $0.callsign == atc.callsign }),
-              (element.atcSession.position == .ctr || element.atcSession.position == .fss) else {
-            return 0
-        }
-        
-        let regionMap: [RegionMap]
-        if let positionRegionMap = element.atcPosition?.regionMap {
-            regionMap = positionRegionMap
-        } else if let subcenterRegionMap = element.subcenter?.regionMap {
-            regionMap = subcenterRegionMap
-        } else {
-            return 0
-        }
-        
-        return pilots.filter { pilot in
-            guard let lastTrack = pilot.lastTrack else { return false }
-            let pilotCoordinate = CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)
-            return isPointInPolygon(point: pilotCoordinate, polygon: regionMap)
-        }.count
-    }
-}
 
 struct HiddenNavigationBar: ViewModifier {
     func body(content: Content) -> some View {
@@ -111,188 +56,6 @@ struct StarShape: Shape {
     }
 }
 
-class ATCViewModel: ObservableObject {
-    @Published var atcs: [Atc] = []
-    @Published var pilots: [Pilot] = []
-    @Published var countries: [RootCountry] = []
-    @Published var polygonData: [WelcomeElement] = []
-    @Published var pilotCounts: [String: (inbound: Int, outbound: Int, inRegion: Int)] = [:]
-    
-    private var cancellables = Set<AnyCancellable>()
-    
-    func updatePilotCounts(pilots: [Pilot]) {
-        var counts: [String: (inbound: Int, outbound: Int, inRegion: Int)] = [:]
-        
-        for atc in atcs {
-            let inRegionCount = countPilotsInRegion(for: atc)
-            counts[atc.callsign] = (inbound: 0, outbound: 0, inRegion: inRegionCount)
-        }
-        
-        for pilot in pilots {
-            let departure = pilot.flightPlan?.departureId?.prefix(4)
-            let arrival = pilot.flightPlan?.arrivalId?.prefix(4)
-            
-            
-            for atc in atcs {
-                let atcPrefix = atc.callsign.prefix(4)
-                
-                if atcPrefix == departure {
-                    counts[atc.callsign, default: (0, 0, 0)].outbound += 1
-                }
-                if atcPrefix == arrival {
-                    counts[atc.callsign, default: (0, 0, 0)].inbound += 1
-                }
-            }
-        }
-        DispatchQueue.main.async {
-            self.pilotCounts = counts
-        }
-    }
-    
-    func countryName(fromCode code: String) -> String {
-        if code.starts(with: "K") {
-            return "us" // Assuming your flag image is named "us.png"
-        }  else if code.starts(with: "Y") {
-            return "au"
-        }
-        let x = countries.first { $0.Code == code }?.CCode?.lowercased() ?? "default"
-        return x
-    }
-    
-    func getCountryName(fromCode code: String) -> String {
-        if code.starts(with: "K") {
-            return "United States"
-        }  else if code.starts(with: "Y") {
-            return "au"
-        }
-        return countries.first { $0.Code == code }?.Country ?? "default"
-    }
-    
-    func loadCountriesAsync() async {
-        await MainActor.run {
-            loadCountries()
-        }
-    }
-    
-    func fetchATCsAsync() async {
-        await withCheckedContinuation { continuation in
-            fetchATCs()
-            continuation.resume()
-        }
-    }
-    
-    func fetchPolygonDataAsync() async {
-        await withCheckedContinuation { continuation in
-            fetchPolygonData()
-            continuation.resume()
-        }
-    }
-    
-    func getStationName(fromCode callsign: String) -> String {
-        if let element = polygonData.first(where: { $0.callsign == callsign }) {
-            switch element.atcSession.position {
-            case .ctr, .fss:
-                return element.subcenter?.atcCallsign ?? "Unknown CTR/FSS"
-            default:
-                return element.atcPosition?.atcCallsign ?? "Unknown Station"
-            }
-        }
-        return "Station Not Found"
-    }
-    
-    func loadCountries() {
-        if let loadedCountries = loadJson(filename: "countries") {
-            countries = loadedCountries.map { country in
-                var modifiedCountry = country
-                if country.Code.starts(with: "K") {
-                    modifiedCountry.Country = "United States"
-                    modifiedCountry.CCode = "US"
-                }
-                return modifiedCountry
-            }
-        } else {
-            print("Failed to load countries from JSON")
-        }
-    }
-    
-    func fetchPolygonData() {
-        guard let url = URL(string: "https://api.ivao.aero/v2/tracker/now/atc/summary") else {
-            print("Invalid URL")
-            return
-        }
-        
-        URLSession.shared.dataTaskPublisher(for: url)
-            .map { output -> Data in
-                return output.data
-            }
-            .decode(type: [WelcomeElement].self, decoder: JSONDecoder.customDecoder())
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    switch completion {
-                    case .finished:
-                        break
-                    case .failure(let error):
-                        print("Error fetching polygon data: \(error.localizedDescription)")
-                    }
-                },
-                receiveValue: { [weak self] elements in
-                    if !elements.isEmpty {
-                        self?.polygonData = elements
-                    } else {
-                        print("Received empty polygon data, keeping existing data")
-                    }
-                }
-            )
-            .store(in: &cancellables)
-    }
-    
-    func loadJson(filename fileName: String) -> [RootCountry]? {
-        guard let url = Bundle.main.url(forResource: fileName, withExtension: "json") else {
-            print("JSON file not found.")
-            return nil
-        }
-        do {
-            let data = try Data(contentsOf: url)
-            let decoder = JSONDecoder()
-            let jsonData = try decoder.decode([RootCountry].self, from: data)
-            return jsonData
-        } catch {
-            print("Error decoding JSON: \(error.localizedDescription)")
-            return nil
-        }
-    }
-    
-    func fetchATCs() {
-        guard let url = URL(string: "https://api.ivao.aero/v2/tracker/whazzup") else { return }
-        
-        URLSession.shared.dataTaskPublisher(for: url)
-            .map { $0.data }
-            .decode(type: Root.self, decoder: JSONDecoder.customDecoder())
-            .receive(on: DispatchQueue.main)
-            .sink(
-                receiveCompletion: { completion in
-                    switch completion {
-                    case .finished:
-                        break
-                    case .failure(let error):
-                        print("Error fetching ATCs: \(error.localizedDescription)")
-                    }
-                },
-                receiveValue: { [weak self] root in
-                    // Only update if we have new data
-                    if !root.clients.atcs.isEmpty {
-                        self?.atcs = root.clients.atcs.sorted { $0.callsign < $1.callsign }
-                        self?.pilots = root.clients.pilots
-                        self?.updatePilotCounts(pilots: root.clients.pilots)
-                    } else {
-                        print("Received empty ATC data, keeping existing data")
-                    }
-                }
-            )
-            .store(in: &cancellables)
-    }
-}
 
 struct ContentView: View {
     @ObservedObject var viewModel = ATCViewModel()
@@ -314,6 +77,31 @@ struct ContentView: View {
             
             if showMap {
                 fullScreenMapView
+            }
+            
+            if let error = viewModel.errorMessage {
+                VStack {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundColor(.yellow)
+                        Text(error)
+                            .font(.caption)
+                            .lineLimit(2)
+                        Spacer()
+                        Button(action: { viewModel.errorMessage = nil }) {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.white.opacity(0.7))
+                        }
+                    }
+                    .padding(10)
+                    .background(Color.red.opacity(0.85))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    Spacer()
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.easeInOut, value: viewModel.errorMessage)
             }
         }
         .onAppear(perform: onAppear)
@@ -357,20 +145,23 @@ struct ContentView: View {
                 .frame(width: geometry.size.width * 0.3)
                 .background(Color(UIColor.systemBackground))
                 
-                // Detail view
-                if let atc = selectedATC {
-                    ATCDetailViewWrapper(
-                        atcId: atc.id,
-                        viewModel: viewModel
-                    )
-                    .id(atc.id)
-                    .navigationViewStyle(StackNavigationViewStyle())
-                    .frame(width: geometry.size.width * 0.7)
-                } else {
+                // Map + Detail overlay
+                ZStack {
                     ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
                         .edgesIgnoringSafeArea(.all)
-                        .frame(width: geometry.size.width * 0.7)
+                    
+                    if let atc = selectedATC {
+                        ATCDetailViewWrapper(
+                            atcId: atc.id,
+                            viewModel: viewModel,
+                            onClose: { selectedATC = nil }
+                        )
+                        .id(atc.id)
+                        .transition(.opacity)
+                        .animation(.easeInOut(duration: 0.2), value: selectedATC?.id)
+                    }
                 }
+                .frame(width: geometry.size.width * 0.7)
             }
         }
         .navigationTitle("")
@@ -403,7 +194,7 @@ struct ContentView: View {
     }
     
     var fullScreenMapView: some View {
-        ZStack(alignment: .topLeading) {
+        ZStack(alignment: .topTrailing) {
             ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
                 .edgesIgnoringSafeArea(.all)
             
@@ -411,14 +202,13 @@ struct ContentView: View {
                 showMap = false
             }) {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.title)
-                    .foregroundColor(.white)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Circle())
+                    .font(.system(size: 32))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.white.opacity(0.7))
             }
-            .padding()
-            .padding(.top, 0)  // Add top padding to move it below the status bar
-            .padding(.leading, 20)
+            .buttonStyle(.plain)
+            .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 2)
+            .padding(20)
         }
     }
     
@@ -432,7 +222,7 @@ struct ContentView: View {
                     station: viewModel.getStationName(fromCode: String(atc.callsign)),
                     pilots: viewModel.pilots,
                     region: MKCoordinateRegion(
-                        center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                        center: CLLocationCoordinate2D(latitude: atc.lastTrack?.latitude ?? 0, longitude: atc.lastTrack?.longitude ?? 0),
                         span: MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
                     ),
                     isIPhone: true
@@ -441,11 +231,16 @@ struct ContentView: View {
                 }
             } else {
                 ATCListItemView(atc: atc, viewModel: viewModel)
+                    .contentShape(Rectangle())
                     .onTapGesture {
                         selectedATC = atc
                     }
+                    .listRowBackground(
+                        selectedATC?.id == atc.id ? Color.accentColor.opacity(0.2) : Color.clear
+                    )
             }
         }
+        .listStyle(.plain)
     }
     
     private var mapView: some View {
@@ -456,11 +251,13 @@ struct ContentView: View {
                 showMap = false
             }) {
                 Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.white)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Circle())
+                    .font(.system(size: 32))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.white.opacity(0.7))
             }
-            .padding()
+            .buttonStyle(.plain)
+            .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 2)
+            .padding(20)
         }
     }
     
@@ -482,7 +279,7 @@ struct ContentView: View {
     
     
     private var logoLink: some View {
-        Link(destination: URL(string: "https://webeye.ivao.aero/")!) {
+        Link(destination: URL(string: "https://webeye.ivao.aero/") ?? URL(string: "https://ivao.aero")!) {
             Image("logo")
                 .resizable()
                 .aspectRatio(contentMode: .fit)
@@ -530,16 +327,24 @@ struct ATCDetailViewWrapper: View {
     let atcId: Int
     @ObservedObject var viewModel: ATCViewModel
     @State private var region: MKCoordinateRegion
+    var onClose: (() -> Void)? = nil
     
     var atc: Atc? {
         viewModel.atcs.first(where: { $0.id == atcId })
     }
     
-    init(atcId: Int, viewModel: ATCViewModel) {
+    init(atcId: Int, viewModel: ATCViewModel, onClose: (() -> Void)? = nil) {
         self.atcId = atcId
         self.viewModel = viewModel
-        let atc = viewModel.atcs.first(where: { $0.id == atcId })!
-        _region = State(initialValue: Self.getRegion(for: atc))
+        self.onClose = onClose
+        if let atc = viewModel.atcs.first(where: { $0.id == atcId }) {
+            _region = State(initialValue: Self.getRegion(for: atc))
+        } else {
+            _region = State(initialValue: MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 0, longitude: 0),
+                span: MKCoordinateSpan(latitudeDelta: 10, longitudeDelta: 10)
+            ))
+        }
     }
     
     var body: some View {
@@ -552,15 +357,17 @@ struct ATCDetailViewWrapper: View {
                     station: viewModel.getStationName(fromCode: String(atc.callsign)),
                     pilots: viewModel.pilots,
                     region: region,
-                    isIPhone: false                )
+                    isIPhone: false,
+                    onClose: onClose
+                )
             } else {
                 Text("ATC not found")
             }
         }
-        .onChange(of: atc?.lastTrack.latitude) { oldValue, newValue in
+        .onChange(of: atc?.lastTrack?.latitude) { oldValue, newValue in
             updateRegion()
         }
-        .onChange(of: atc?.lastTrack.longitude) { oldValue, newValue in
+        .onChange(of: atc?.lastTrack?.longitude) { oldValue, newValue in
             updateRegion()
         }
     }
@@ -572,29 +379,11 @@ struct ATCDetailViewWrapper: View {
     }
     
     private static func getRegion(for atc: Atc) -> MKCoordinateRegion {
-        let span = getSpanForPosition(atc.atcSession.position)
+        let span = getSpanForPosition(atc.atcSession.position ?? "")
         return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+            center: CLLocationCoordinate2D(latitude: atc.lastTrack?.latitude ?? 0, longitude: atc.lastTrack?.longitude ?? 0),
             span: span
         )
-    }
-    
-    
-    private static func getSpanForPosition(_ position: String) -> MKCoordinateSpan {
-        switch position.lowercased() {
-        case "twr":
-            return MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
-        case "app":
-            return MKCoordinateSpan(latitudeDelta: 2.5, longitudeDelta: 2.5)
-        case "gnd":
-            return MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
-        case "del":
-            return MKCoordinateSpan(latitudeDelta: 0.3, longitudeDelta: 0.3)
-        case "ctr", "fss":
-            return MKCoordinateSpan(latitudeDelta: 25, longitudeDelta: 25)
-        default:
-            return MKCoordinateSpan(latitudeDelta: 0.5, longitudeDelta: 0.5)
-        }
     }
 }
 
@@ -620,20 +409,13 @@ struct ATCListItemView: View {
                 Text("\(viewModel.getCountryName(fromCode: String(atc.callsign.prefix(2))))")
                     .font(.caption2)
                     .foregroundColor(.secondary)
-                Text("\(convertSecondsToHHMMSS(atc.lastTrack.time))")
+                Text("\(convertSecondsToHHMMSS(atc.lastTrack?.time ?? 0))")
                     .font(.subheadline)
                     .foregroundColor(.gray)
             }
             Spacer()
             ATCInfoView(atc: atc, viewModel: viewModel)
         }
-    }
-    
-    private func convertSecondsToHHMMSS(_ totalSeconds: Int) -> String {
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-        return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
     }
 }
 
@@ -648,7 +430,7 @@ struct ATCInfoView: View {
                 .foregroundColor(.secondary)
             HStack(spacing: 5) {
                 if let counts = viewModel.pilotCounts[atc.callsign] {
-                    if atc.atcSession.position == "CTR" || atc.atcSession.position == "FSS" {
+                    if atc.atcSession.position == "CTR" || atc.atcSession.position == "FSS" || atc.atcSession.position == nil {
                         if counts.inRegion != 0 {
                             Text("\(counts.inRegion)")
                                 .foregroundColor(.blue)
@@ -673,190 +455,7 @@ struct ATCInfoView: View {
 }
 
 
-struct LabeledContent: View {
-    let label: String
-    let value: String
-    
-    init(_ label: String, value: String) {
-        self.label = label
-        self.value = value
-    }
-    
-    var body: some View {
-        HStack(spacing: 2) {
-            Text(label)
-                .fontWeight(.bold)
-            Text(value)
-        }
-    }
-}
-
-
-
 #Preview {
     ContentView()
 }
 
-class AirportDataManager: ObservableObject {
-    static let shared = AirportDataManager()
-    private var db: OpaquePointer?
-    
-    @Published var lastError: String?
-    
-    private init() {
-        openDatabase()
-    }
-    
-    private func openDatabase() {
-        guard let dbPath = Bundle.main.path(forResource: "airport", ofType: "db3") else {
-            lastError = "Database file not found in bundle"
-            print("Error: \(lastError ?? "")")
-            return
-        }
-        
-        print("Attempting to open database at path: \(dbPath)")
-        
-        if sqlite3_open(dbPath, &db) != SQLITE_OK {
-            lastError = "Error opening database: \(String(cString: sqlite3_errmsg(db)))"
-            print("Error: \(lastError ?? "")")
-            return
-        }
-        
-        print("Successfully opened database at \(dbPath)")
-    }
-    
-    func getAirportCoordinates(ident: String) -> CLLocationCoordinate2D? {
-        print("Attempting to get coordinates for airport: \(ident)")
-        
-        guard let db = db else {
-            lastError = "Database connection is not initialized"
-            print("Error: \(lastError ?? "")")
-            return nil
-        }
-        
-        let queryString = "SELECT latitude_deg, longitude_deg FROM airports WHERE ident = ?"
-        var statement: OpaquePointer?
-        
-        guard sqlite3_prepare_v2(db, queryString, -1, &statement, nil) == SQLITE_OK else {
-            lastError = "Error preparing statement: \(String(cString: sqlite3_errmsg(db)))"
-            print("Error: \(lastError ?? "")")
-            return nil
-        }
-        
-        sqlite3_bind_text(statement, 1, (ident as NSString).utf8String, -1, nil)
-        
-        if sqlite3_step(statement) == SQLITE_ROW {
-            let latitude = sqlite3_column_double(statement, 0)
-            let longitude = sqlite3_column_double(statement, 1)
-            sqlite3_finalize(statement)
-            print("Found coordinates for \(ident): (\(latitude), \(longitude))")
-            return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-        }
-        
-        sqlite3_finalize(statement)
-        lastError = "No coordinates found for airport with ident: \(ident)"
-        print("Error: \(lastError ?? "")")
-        return nil
-    }
-    
-    deinit {
-        if let db = db {
-            sqlite3_close(db)
-        }
-    }
-}
-
-// MARK: - MapView
-
-struct MapView: UIViewRepresentable {
-    @Binding var region: MKCoordinateRegion
-    let routeData: RouteData?
-    let pilots: [Pilot]
-    let onPilotSelect: (Pilot) -> Void
-    
-    func makeUIView(context: Context) -> MKMapView {
-        let mapView = MKMapView()
-        mapView.delegate = context.coordinator
-        return mapView
-    }
-    
-    func updateUIView(_ uiView: MKMapView, context: Context) {
-        uiView.setRegion(region, animated: true)
-        
-        // Remove all overlays and annotations
-        uiView.removeOverlays(uiView.overlays)
-        uiView.removeAnnotations(uiView.annotations)
-        
-        // Add pilot annotations
-        for pilot in pilots {
-            if let lastTrack = pilot.lastTrack {
-                let annotation = PilotAnnotation(pilot: pilot)
-                annotation.coordinate = CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude)
-                uiView.addAnnotation(annotation)
-            }
-        }
-        
-        // Add route if available
-        if let routeData = routeData {
-            let departureToCurrentPolyline = MKPolyline(coordinates: [routeData.departure, routeData.current], count: 2)
-            let currentToArrivalPolyline = MKPolyline(coordinates: [routeData.current, routeData.arrival], count: 2)
-            
-            uiView.addOverlay(departureToCurrentPolyline)
-            uiView.addOverlay(currentToArrivalPolyline)
-            
-            // Add departure and arrival annotations
-            let departureAnnotation = MKPointAnnotation()
-            departureAnnotation.coordinate = routeData.departure
-            departureAnnotation.title = routeData.departureId
-            
-            let arrivalAnnotation = MKPointAnnotation()
-            arrivalAnnotation.coordinate = routeData.arrival
-            arrivalAnnotation.title = routeData.arrivalId
-            
-            uiView.addAnnotations([departureAnnotation, arrivalAnnotation])
-        }
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-    
-    class Coordinator: NSObject, MKMapViewDelegate {
-        var parent: MapView
-        
-        init(_ parent: MapView) {
-            self.parent = parent
-        }
-        
-        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
-            if let polyline = overlay as? MKPolyline {
-                let renderer = MKPolylineRenderer(polyline: polyline)
-                renderer.strokeColor = .blue
-                renderer.lineWidth = 3
-                return renderer
-            }
-            return MKOverlayRenderer(overlay: overlay)
-        }
-        
-        
-        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
-            if let pilotAnnotation = view.annotation as? PilotAnnotation {
-                parent.onPilotSelect(pilotAnnotation.pilot)
-            }
-        }
-    }
-}
-
-class PilotAnnotation: NSObject, MKAnnotation {
-    let pilot: Pilot
-    var coordinate: CLLocationCoordinate2D
-    
-    init(pilot: Pilot) {
-        self.pilot = pilot
-        self.coordinate = CLLocationCoordinate2D(latitude: pilot.lastTrack?.latitude ?? 0, longitude: pilot.lastTrack?.longitude ?? 0)
-    }
-    
-    var title: String? {
-        return pilot.callsign
-    }
-}

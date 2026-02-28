@@ -10,14 +10,12 @@ struct ATCMapView: View {
     @State private var selectedPilot: Pilot?
     @StateObject private var airportManager = AirportDataManager.shared
     @State private var pilotRoutes: [RouteData] = []
-    @State private var debugMessage: String = ""
     @State private var mapRotation: Double = 0
     @State private var position: MapCameraPosition
     @GestureState private var gestureRotation: Double = 0
     @State private var showAlert = false
     @State private var alertMessage = ""
     @State private var isHovering: Bool = false
-    @State private var showDebugMessage = false
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
     
     private let towerRadius: CLLocationDegrees = .fromKilometers(9.3)
@@ -48,26 +46,12 @@ struct ATCMapView: View {
                             .scaledToFit()
                             .frame(width: 30, height: 30)
                             .rotationEffect(Angle(degrees: Double(lastTrack.heading) - mapRotation))
-                            .onHover { hovering in
-                                if horizontalSizeClass == .regular {
-                                    if hovering {
-                                        selectedPilot = pilot
-                                        Task {
-                                            await updateRouteAndDebugMessage(for: pilot)
-                                        }
-                                    } else {
-                                        clearSelection()
-                                    }
-                                }
-                            }
                             .onTapGesture {
                                 if selectedPilot?.id == pilot.id {
                                     clearSelection()
                                 } else {
                                     selectedPilot = pilot
-                                    Task {
-                                        await updateRouteAndDebugMessage(for: pilot)
-                                    }
+                                    updateRoute(for: pilot)
                                 }
                             }
                     } label: {
@@ -77,16 +61,17 @@ struct ATCMapView: View {
             }
             
             ForEach(atcs, id: \.id) { atc in
-                if let relevantPolygon = polygonData.first(where: { $0.callsign == atc.callsign }) {
+                if let relevantPolygon = polygonData.first(where: { $0.callsign == atc.callsign }),
+                   let lastTrack = atc.lastTrack {
                     switch relevantPolygon.atcSession.position {
                     case .twr:
-                        MapCircle(center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                        MapCircle(center: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude),
                                   radius: CLLocationDegrees.fromKilometers(9.3) * 111320)
                         .stroke(.red, lineWidth: 2)
                         .foregroundStyle(.red.opacity(0.1))
                     case .gnd:
                         MapPolygon(coordinates: createStarCoordinates(
-                            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                            center: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude),
                             radius: CLLocationDegrees.fromKilometers(9.3) * 111320,
                             points: 4,
                             rotation: 0
@@ -95,7 +80,7 @@ struct ATCMapView: View {
                         .foregroundStyle(.yellow.opacity(0.1))
                     case .del:
                         MapPolygon(coordinates: createStarCoordinates(
-                            center: CLLocationCoordinate2D(latitude: atc.lastTrack.latitude, longitude: atc.lastTrack.longitude),
+                            center: CLLocationCoordinate2D(latitude: lastTrack.latitude, longitude: lastTrack.longitude),
                             radius: CLLocationDegrees.fromKilometers(9.3) * 111320,
                             points: 4,
                             rotation: .pi / 4
@@ -144,15 +129,12 @@ struct ATCMapView: View {
             UserDefaults.standard.set(context.camera.distance, forKey: "mapZoom")
         }
         .overlay(alignment: .bottom) {
-            if let _ = selectedPilot, showDebugMessage {
-                if let imageData = Data(base64Encoded: debugMessage),
-                   let uiImage = UIImage(data: imageData) {
-                    Image(uiImage: uiImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: .infinity, maxHeight: 150)
-                        .padding()
-                }
+            if let pilot = selectedPilot {
+                PilotInfoCard(pilot: pilot, onDismiss: clearSelection)
+                    .padding(.horizontal)
+                    .padding(.bottom, 20)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .animation(.easeInOut(duration: 0.25), value: selectedPilot?.id)
             }
         }
         .ignoresSafeArea()
@@ -167,108 +149,19 @@ struct ATCMapView: View {
         }
     }
     
-    private func updateRouteAndDebugMessage(for pilot: Pilot) async {
-        guard let flightPlan = pilot.flightPlan, let lastTrack = pilot.lastTrack else {
-            debugMessage = "No flight plan or track data available for \(pilot.callsign)"
-            showDebugMessage = true
-            return
-        }
-
-        let formattedMessage = VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text("Callsign: \(pilot.callsign)")
-                    .font(.system(size: 16, weight: .bold))
-                Spacer()
-                Text("From/To: \(flightPlan.departureId ?? "N/A") -> \(flightPlan.arrivalId ?? "N/A")")
-                    .font(.system(size: 16, weight: .bold))
-            }
-            
-            Divider()
-            
-            HStack {
-                Text("Speed: \(flightPlan.speed)")
-                Spacer()
-                Text("Flight Level: \(flightPlan.level)")
-                Spacer()
-                Text("EET: \(formatEET(flightPlan.eet))")
-            }
-            .font(.system(size: 14))
-            
-            Text("Route: \(flightPlan.route)")
-                .font(.system(size: 14, weight: .bold))
-            
-            ScrollView(.vertical, showsIndicators: true) {
-                Text(flightPlan.route)
-                    .font(.system(size: 12))
-                    .lineLimit(nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(height: 60)  // Fixed height for route area
-        }
-        .frame(width: 300)  // Fixed width for the entire message
-        .padding()
-        .background(Color.black.opacity(0.7))
-        .foregroundColor(.white)
-        .cornerRadius(10)
-
-        debugMessage = await formattedMessage.toAttributedString()
-        showDebugMessage = true
-
+    private func updateRoute(for pilot: Pilot) {
         if let route = calculateRouteData(for: pilot) {
             pilotRoutes = [route]
+        } else {
+            pilotRoutes.removeAll()
         }
-    }
-
-    private func formatEET(_ eet: Int) -> String {
-        let hours = eet / 3600
-        let minutes = (eet % 3600) / 60
-        return String(format: "%02d:%02d", hours, minutes)
     }
         
     private func clearSelection() {
         selectedPilot = nil
         pilotRoutes.removeAll()
-        debugMessage = ""
-        showDebugMessage = false
     }
     
-    private func getPolygonCoordinates(for element: WelcomeElement) -> [CLLocationCoordinate2D]? {
-        let coordinates: [RegionMap]?
-        if let regionMap = element.atcPosition?.regionMap {
-            coordinates = regionMap
-        } else if let regionMap = element.subcenter?.regionMap {
-            coordinates = regionMap
-        } else {
-            return nil
-        }
-        
-        return coordinates?.compactMap { coordinate in
-            let normalizedLng = normalizeLongitude(coordinate.lng)
-            return CLLocationCoordinate2D(latitude: coordinate.lat, longitude: normalizedLng)
-        }
-    }
-    
-    private func normalizeLongitude(_ longitude: Double) -> Double {
-        var normalized = longitude
-        while normalized < -180 {
-            normalized += 360
-        }
-        while normalized > 180 {
-            normalized -= 360
-        }
-        return normalized
-    }
-    
-    private func createStarCoordinates(center: CLLocationCoordinate2D, radius: CLLocationDegrees, points: Int, rotation: Double) -> [CLLocationCoordinate2D] {
-        let angleIncrement = .pi * 2 / Double(points * 2)
-        return (0..<(points * 2)).map { i in
-            let angle = Double(i) * angleIncrement - .pi / 2 + rotation
-            let r = i % 2 == 0 ? radius : radius * 0.3
-            let lat = center.latitude + (cos(angle) * r) / 111320
-            let lon = center.longitude + (sin(angle) * r) / (111320 * cos(center.latitude * .pi / 180))
-            return CLLocationCoordinate2D(latitude: lat, longitude: lon)
-        }
-    }
     
     private func calculateRouteData(for pilot: Pilot) -> RouteData? {
         guard let flightPlan = pilot.flightPlan,
@@ -293,17 +186,122 @@ struct ATCMapView: View {
     }
 }
 
-extension View {
-    func toAttributedString() async -> String {
-        await MainActor.run {
-            let renderer = ImageRenderer(content: self)
-            renderer.scale = UIScreen.main.scale
-            if let uiImage = renderer.uiImage {
-                if let data = uiImage.pngData() {
-                    return data.base64EncodedString()
+// MARK: - Pilot Info Card
+
+struct PilotInfoCard: View {
+    let pilot: Pilot
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(pilot.callsign)
+                        .font(.system(size: 24, weight: .bold, design: .monospaced))
+                    if let lastTrack = pilot.lastTrack {
+                        Text("ALT \(lastTrack.altitude) ft  ·  HDG \(lastTrack.heading)°  ·  GS \(lastTrack.groundSpeed ?? 0) kt")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
             }
-            return ""
+            .padding(.bottom, 14)
+            
+            if let fp = pilot.flightPlan {
+                // Route bar
+                HStack(spacing: 12) {
+                    routeEndpoint(fp.departureId ?? "????", icon: "airplane.departure", color: .green)
+                    
+                    Rectangle()
+                        .fill(.secondary.opacity(0.3))
+                        .frame(height: 1)
+                    
+                    routeEndpoint(fp.arrivalId ?? "????", icon: "airplane.arrival", color: .blue)
+                }
+                .padding(.bottom, 14)
+                
+                // Flight details grid
+                HStack(spacing: 0) {
+                    detailCell(label: "SPD", value: fp.speed)
+                    detailCell(label: "FL", value: fp.level)
+                    detailCell(label: "EET", value: formatEET(fp.eet))
+                    if let alt = fp.alternativeId, !alt.isEmpty {
+                        detailCell(label: "ALT", value: alt)
+                    }
+                }
+                .padding(.bottom, 14)
+                
+                // Route
+                if !fp.route.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("ROUTE")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text(fp.route)
+                            .font(.system(size: 14, design: .monospaced))
+                            .lineLimit(4)
+                            .foregroundStyle(.primary.opacity(0.85))
+                    }
+                }
+                
+                // Remarks
+                if let remarks = fp.remarks, !remarks.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("RMK")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Text(remarks)
+                            .font(.system(size: 14))
+                            .lineLimit(3)
+                            .foregroundStyle(.primary.opacity(0.7))
+                    }
+                    .padding(.top, 8)
+                }
+            } else {
+                Text("No flight plan filed")
+                    .font(.system(size: 16))
+                    .foregroundStyle(.secondary)
+            }
         }
+        .padding(18)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 4)
+        .frame(maxWidth: 520)
+    }
+    
+    private func routeEndpoint(_ icao: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(color)
+            Text(icao)
+                .font(.system(size: 20, weight: .bold, design: .monospaced))
+        }
+    }
+    
+    private func detailCell(label: String, value: String) -> some View {
+        VStack(spacing: 3) {
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 17, weight: .semibold, design: .monospaced))
+        }
+        .frame(maxWidth: .infinity)
+    }
+    
+    private func formatEET(_ eet: Int) -> String {
+        let hours = eet / 3600
+        let minutes = (eet % 3600) / 60
+        return String(format: "%02d:%02d", hours, minutes)
     }
 }

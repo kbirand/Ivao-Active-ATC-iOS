@@ -12,6 +12,7 @@ struct Ivao_Active_ATCApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .preferredColorScheme(.dark)
         }
     }
 }
