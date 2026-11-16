@@ -61,6 +61,7 @@ struct ContentView: View {
     @ObservedObject var viewModel = ATCViewModel()
     @State private var searchText = UserDefaults.standard.string(forKey: "searchText") ?? ""
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.openURL) private var openURL
     @State private var showMap = false
     @State private var timer: Timer?
     @State private var selectedATC: Atc?
@@ -189,6 +190,17 @@ struct ContentView: View {
                     searchText = newValue.uppercased()
                     UserDefaults.standard.set(searchText, forKey: "searchText")
                 }
+
+            Menu {
+                Button("Contact Support", systemImage: "envelope") {
+                    Task { openURL(await SupportLink.url()) }
+                }
+            } label: {
+                Image(systemName: "questionmark.circle")
+                    .foregroundColor(.blue)
+            }
+            .accessibilityLabel("Help")
+            .padding(.trailing)
         }
         .padding([.top, .horizontal])
     }

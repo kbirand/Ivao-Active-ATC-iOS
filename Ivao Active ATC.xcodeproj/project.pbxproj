@@ -19,6 +19,7 @@
 		CA000001AAAA000000000001 /* ATCViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA000002AAAA000000000001 /* ATCViewModel.swift */; };
 		CA000001AAAA000000000002 /* AirportDataManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA000002AAAA000000000002 /* AirportDataManager.swift */; };
 		CA000001AAAA000000000003 /* Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA000002AAAA000000000003 /* Helpers.swift */; };
+		CA000001AAAA000000000099 /* SupportLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA000002AAAA000000000099 /* SupportLink.swift */; };
 		CA000001AAAA000000000004 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = CA000002AAAA000000000004 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
@@ -37,6 +38,7 @@
 		CA000002AAAA000000000001 /* ATCViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ATCViewModel.swift; sourceTree = "<group>"; };
 		CA000002AAAA000000000002 /* AirportDataManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirportDataManager.swift; sourceTree = "<group>"; };
 		CA000002AAAA000000000003 /* Helpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Helpers.swift; sourceTree = "<group>"; };
+		CA000002AAAA000000000099 /* SupportLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupportLink.swift; sourceTree = "<group>"; };
 		CA000002AAAA000000000004 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -83,6 +85,7 @@
 				CA000002AAAA000000000001 /* ATCViewModel.swift */,
 				CA000002AAAA000000000002 /* AirportDataManager.swift */,
 				CA000002AAAA000000000003 /* Helpers.swift */,
+				CA000002AAAA000000000099 /* SupportLink.swift */,
 				CA000002AAAA000000000004 /* PrivacyInfo.xcprivacy */,
 			);
 			path = "Ivao Active ATC";
@@ -169,6 +172,7 @@
 				CA000001AAAA000000000001 /* ATCViewModel.swift in Sources */,
 				CA000001AAAA000000000002 /* AirportDataManager.swift in Sources */,
 				CA000001AAAA000000000003 /* Helpers.swift in Sources */,
+				CA000001AAAA000000000099 /* SupportLink.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -304,7 +308,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "\"Ivao Active ATC/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -322,7 +326,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.koraybirand.Ivao-Active-ATC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -339,7 +343,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 8;
 				DEVELOPMENT_ASSET_PATHS = "\"Ivao Active ATC/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -357,7 +361,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = "com.koraybirand.Ivao-Active-ATC";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
