@@ -61,15 +61,25 @@ struct ContentView: View {
     @ObservedObject var viewModel = ATCViewModel()
     @State private var searchText = UserDefaults.standard.string(forKey: "searchText") ?? ""
     @Environment(\.horizontalSizeClass) var horizontalSizeClass
+    @Environment(\.verticalSizeClass) var verticalSizeClass
     @Environment(\.openURL) private var openURL
     @State private var showMap = false
     @State private var timer: Timer?
     @State private var selectedATC: Atc?
+    /// The sliding list panel in narrow portrait.
+    @State private var showSidebar = true
     
+    /// The iPad layout (list beside the map) whenever the window is regular in both directions:
+    /// iPad full screen and iPhone Duo unfolded. iPhones, the Duo folded and narrow iPad
+    /// split views use the phone layout.
+    private var useWideLayout: Bool {
+        horizontalSizeClass == .regular && verticalSizeClass == .regular
+    }
+
     var body: some View {
         ZStack {
             Group {
-                if UIDevice.current.userInterfaceIdiom == .phone {
+                if !useWideLayout {
                     phoneLayout
                 } else {
                     tabletDesktopLayout
@@ -135,34 +145,58 @@ struct ContentView: View {
     
     var tabletDesktopLayout: some View {
         GeometryReader { geometry in
-            HStack(spacing: 0) {
-                // Sidebar
-                VStack {
-                    logoLink
-                    searchBarWithMapButton
-                    atcCountText
-                    atcList
+            if geometry.size.width >= geometry.size.height {
+                // Landscape: list beside the map, wide enough for a full row
+                let sidebarWidth = min(max(geometry.size.width * 0.3, 340), geometry.size.width * 0.45)
+                HStack(spacing: 0) {
+                    sidebar
+                        .frame(width: sidebarWidth)
+                    mapPane
+                        .frame(width: geometry.size.width - sidebarWidth)
                 }
-                .frame(width: geometry.size.width * 0.3)
-                .background(Color(UIColor.systemBackground))
-                
-                // Map + Detail overlay
-                ZStack {
-                    ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
-                        .edgesIgnoringSafeArea(.all)
-                    
-                    if let atc = selectedATC {
-                        ATCDetailViewWrapper(
-                            atcId: atc.id,
-                            viewModel: viewModel,
-                            onClose: { selectedATC = nil }
-                        )
-                        .id(atc.id)
-                        .transition(.opacity)
-                        .animation(.easeInOut(duration: 0.2), value: selectedATC?.id)
+            } else if geometry.size.width < 800 {
+                // Narrow portrait (iPhone Duo unfolded, iPad mini): full map, list slides in from the left
+                let panelWidth = min(340, geometry.size.width * 0.6)
+                ZStack(alignment: .leading) {
+                    mapPane
+                    // The panel with its pull tab; hidden, only the tab shows at the map's edge
+                    HStack(spacing: 0) {
+                        sidebar
+                            .frame(width: panelWidth)
+                        Button {
+                            withAnimation(.snappy) { showSidebar.toggle() }
+                        } label: {
+                            Image(systemName: showSidebar ? "chevron.compact.left" : "chevron.compact.right")
+                                .font(.system(size: 22, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24, height: 72)
+                                .background(
+                                    Color(UIColor.systemBackground),
+                                    in: UnevenRoundedRectangle(bottomTrailingRadius: 12, topTrailingRadius: 12)
+                                )
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showSidebar ? "Hide list" : "Show list")
                     }
+                    .shadow(color: .black.opacity(0.5), radius: 12)
+                    .offset(x: showSidebar ? 0 : -panelWidth)
+                    .gesture(DragGesture(minimumDistance: 20).onEnded { value in
+                        if value.translation.width < -60 { withAnimation(.snappy) { showSidebar = false } }
+                        if value.translation.width > 60 { withAnimation(.snappy) { showSidebar = true } }
+                    })
                 }
-                .frame(width: geometry.size.width * 0.7)
+                .onChange(of: selectedATC?.id) { _, id in
+                    if id != nil { withAnimation(.snappy) { showSidebar = false } }
+                }
+            } else {
+                // Wide portrait (bigger iPads): list beside the map
+                HStack(spacing: 0) {
+                    sidebar
+                        .frame(width: 340)
+                    mapPane
+                        .frame(width: geometry.size.width - 340)
+                }
             }
         }
         .navigationTitle("")
@@ -170,6 +204,36 @@ struct ContentView: View {
         .toolbar {
             ToolbarItem(placement: .principal) {
                 logoLink
+            }
+        }
+    }
+
+    private var sidebar: some View {
+        VStack {
+            logoLink
+                .padding(.top, 8)
+            searchBarWithMapButton
+            atcCountText
+            atcList
+        }
+        .background(Color(UIColor.systemBackground).ignoresSafeArea())
+    }
+
+    /// The map with the selected station's card on top.
+    private var mapPane: some View {
+        ZStack {
+            ATCMapView(atcs: viewModel.atcs, polygonData: viewModel.polygonData, pilots: viewModel.pilots)
+                .ignoresSafeArea(edges: [.top, .trailing])
+
+            if let atc = selectedATC {
+                ATCDetailViewWrapper(
+                    atcId: atc.id,
+                    viewModel: viewModel,
+                    onClose: { selectedATC = nil }
+                )
+                .id(atc.id)
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: selectedATC?.id)
             }
         }
     }
@@ -226,7 +290,7 @@ struct ContentView: View {
     
     var atcList: some View {
         List(viewModel.atcs.filter { $0.callsign.hasPrefix(searchText) || searchText.isEmpty }, id: \.id) { atc in
-            if UIDevice.current.userInterfaceIdiom == .phone {
+            if !useWideLayout {
                 NavigationLink(destination: ATCDetailView(
                     atc: atc,
                     polygonData: viewModel.polygonData,
@@ -250,6 +314,8 @@ struct ContentView: View {
                     .listRowBackground(
                         selectedATC?.id == atc.id ? Color.accentColor.opacity(0.2) : Color.clear
                     )
+                    // The plain list leaves no trailing inset here, which clips the letter column
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             }
         }
         .listStyle(.plain)
@@ -408,12 +474,14 @@ struct ATCListItemView: View {
             Image(viewModel.countryName(fromCode: String(atc.callsign.prefix(2))).lowercased())
                 .resizable()
                 .scaledToFit()
-                .frame(height: 60)
+                .frame(width: 90, height: 60)
                 .cornerRadius(5)
                 .padding(.trailing, 5)
             VStack(alignment: .leading) {
                 Text("\(atc.callsign)")
                     .bold()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
                 Text(viewModel.getStationName(fromCode: String(atc.callsign)))
                     .font(.subheadline)
                     .foregroundColor(.secondary)
@@ -425,8 +493,9 @@ struct ATCListItemView: View {
                     .font(.subheadline)
                     .foregroundColor(.gray)
             }
-            Spacer()
+            Spacer(minLength: 4)
             ATCInfoView(atc: atc, viewModel: viewModel)
+                .fixedSize()
         }
     }
 }

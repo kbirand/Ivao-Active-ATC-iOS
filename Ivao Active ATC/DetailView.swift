@@ -17,6 +17,13 @@ struct ATCDetailView: View {
     var onClose: (() -> Void)? = nil
     
     @State private var mapRotation: Double = 0
+    /// Smaller card for a short or narrow map area (iPhone Duo unfolded, iPad mini).
+    @State private var compact = false
+    /// Full height of the ATIS text, for the compact card's scroll area.
+    @State private var atisHeight: CGFloat = 54
+
+    /// The full size on a big iPad, the second value when `compact`.
+    private func size(_ full: CGFloat, _ small: CGFloat) -> CGFloat { compact ? small : full }
     
     init(atc: Atc, polygonData: [WelcomeElement], cCode: String, station: String, pilots: [Pilot], region: MKCoordinateRegion, isIPhone: Bool, onClose: (() -> Void)? = nil) {
         self.atc = atc
@@ -49,28 +56,41 @@ struct ATCDetailView: View {
     // MARK: - Desktop Overlay
     
     private var desktopOverlay: some View {
-        VStack {
-            HStack {
-                Spacer()
-                if let onClose = onClose {
-                    Button(action: onClose) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 32))
-                            .symbolRenderingMode(.hierarchical)
-                            .foregroundStyle(.white.opacity(0.7))
+        ZStack {
+            // Close button: stays inside the safe area, clear of the status pill
+            VStack {
+                HStack {
+                    Spacer()
+                    if let onClose = onClose {
+                        Button(action: onClose) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 32))
+                                .symbolRenderingMode(.hierarchical)
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
+                        .buttonStyle(.plain)
+                        .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 2)
                     }
-                    .buttonStyle(.plain)
-                    .shadow(color: .black.opacity(0.4), radius: 6, x: 0, y: 2)
+                }
+                Spacer()
+            }
+            .padding(size(20, 10))
+
+            // Card. Compact: bottom right corner, into the bottom and trailing safe areas, so it
+            // sits low and out of the way without covering the Maps logo on the left.
+            VStack {
+                Spacer()
+                HStack {
+                    if compact { Spacer() }
+                    floatingInfoCard
+                        .frame(maxWidth: size(520, 280))
+                    if !compact { Spacer() }
                 }
             }
-            Spacer()
-            HStack {
-                floatingInfoCard
-                    .frame(maxWidth: 520)
-                Spacer()
-            }
+            .padding(size(20, 10))
+            .ignoresSafeArea(.container, edges: compact ? [.bottom, .trailing] : [])
         }
-        .padding(20)
+        .onGeometryChange(for: Bool.self) { $0.size.height < 800 || $0.size.width < 700 } action: { compact = $0 }
     }
     
     // MARK: - Phone Overlay
@@ -88,20 +108,20 @@ struct ATCDetailView: View {
     private var floatingInfoCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header row
-            HStack(alignment: .top, spacing: 16) {
+            HStack(alignment: .top, spacing: size(16, 8)) {
                 Image(cCode)
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 72, height: 52)
+                    .frame(width: size(72, 30), height: size(52, 21))
                     .cornerRadius(6)
                     .shadow(color: .black.opacity(0.3), radius: 3, x: 0, y: 1)
                 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(atc.callsign)
-                        .font(.system(size: 28, weight: .heavy))
+                        .font(.system(size: size(28, 15), weight: .heavy))
                         .foregroundStyle(.white)
                     Text(station)
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.system(size: size(17, 11), weight: .medium))
                         .foregroundStyle(.white.opacity(0.6))
                         .lineLimit(1)
                 }
@@ -111,14 +131,14 @@ struct ATCDetailView: View {
                 // ATIS badge
                 if let revision = atc.atis?.revision {
                     Text(revision)
-                        .font(.largeTitle)
+                        .font(compact ? .system(size: 15, weight: .semibold) : .largeTitle)
                         .foregroundStyle(.white)
-                        .frame(width: 54, height: 54)
+                        .frame(width: size(54, 24), height: size(54, 24))
                         .background(Color.accentColor.opacity(0.8))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: size(12, 8), style: .continuous))
                 }
             }
-            .padding(.bottom, 20)
+            .padding(.bottom, size(20, 7))
             
             // Stats row
             HStack(spacing: 0) {
@@ -128,9 +148,9 @@ struct ATCDetailView: View {
                 statDivider
                 statCell(value: convertSecondsToHHMMSS(atc.lastTrack?.time ?? 0), label: "ACTIVE")
             }
-            .padding(.vertical, 16)
+            .padding(.vertical, size(16, 5))
             .background(Color.white.opacity(0.06))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: size(12, 8), style: .continuous))
             
             // ATIS section
             if let lines = atc.atis?.lines, !lines.isEmpty {
@@ -141,24 +161,37 @@ struct ATCDetailView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("ATIS")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: size(14, 9), weight: .bold))
                                 .foregroundStyle(.white.opacity(0.4))
                                 .tracking(1.5)
                             Spacer()
                             if let ts = atc.atis?.timestamp {
                                 Text(formatTimestamp(ts))
-                                    .font(.system(size: 14))
+                                    .font(.system(size: size(14, 9)))
                                     .foregroundStyle(.white.opacity(0.3))
                             }
                         }
                         
-                        Text(atisText)
-                            .font(.system(size: 16, weight: .regular))
+                        let atis = Text(atisText)
+                            .font(.system(size: size(16, 10.5), weight: .regular))
                             .foregroundStyle(.white.opacity(0.85))
-                            .lineSpacing(6)
+                            .lineSpacing(size(6, 1))
                             .fixedSize(horizontal: false, vertical: true)
+                        if compact {
+                            // About four lines show; the rest scrolls, nothing is cut
+                            ScrollView {
+                                atis
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { atisHeight = $0 }
+                            }
+                            .frame(height: min(atisHeight, 54))
+                            .scrollBounceBehavior(.basedOnSize)
+                            .scrollIndicators(.visible)
+                        } else {
+                            atis
+                        }
                     }
-                    .padding(.top, 16)
+                    .padding(.top, size(16, 6))
                 }
             }
             
@@ -168,33 +201,33 @@ struct ATCDetailView: View {
                     Text("\(String(format: "%.4f", lastTrack.latitude))° N")
                     Text("\(String(format: "%.4f", abs(lastTrack.longitude)))° \(lastTrack.longitude >= 0 ? "E" : "W")")
                 }
-                .font(.system(size: 14, design: .monospaced))
+                .font(.system(size: size(14, 9), design: .monospaced))
                 .foregroundStyle(.white.opacity(0.3))
-                .padding(.top, 14)
+                .padding(.top, size(14, 4))
             }
         }
-        .padding(24)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(.black.opacity(0.7))
-                .background(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        )
+        .padding(size(24, 10))
+        .background(cardShape.fill(.black.opacity(0.7)).background(.ultraThinMaterial, in: cardShape))
         .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 8)
     }
     
+    /// Compact: corners concentric with the display, so the corner that sits in the screen's
+    /// rounded corner follows its curve; the others stay at 14. Full size: plain 20.
+    private var cardShape: AnyShape {
+        compact
+            ? AnyShape(ConcentricRectangle(corners: .concentric(minimum: 14), isUniform: false))
+            : AnyShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
     // MARK: - Stat Cell
     
     private func statCell(value: String, label: String) -> some View {
-        VStack(spacing: 5) {
+        VStack(spacing: size(5, 1)) {
             Text(value)
-                .font(.system(size: 20, weight: .bold, design: .monospaced))
+                .font(.system(size: size(20, 11), weight: .bold, design: .monospaced))
                 .foregroundStyle(.white)
             Text(label)
-                .font(.system(size: 11, weight: .semibold))
+                .font(.system(size: size(11, 7), weight: .semibold))
                 .foregroundStyle(.white.opacity(0.35))
                 .tracking(1)
         }
@@ -204,7 +237,7 @@ struct ATCDetailView: View {
     private var statDivider: some View {
         Rectangle()
             .fill(.white.opacity(0.1))
-            .frame(width: 1, height: 40)
+            .frame(width: 1, height: size(40, 18))
     }
     
     private func formatTimestamp(_ ts: String) -> String {
