@@ -27,7 +27,7 @@ IVAO Active ATC is a SwiftUI-based iOS application designed to track and display
 
 ## Installation
 1. Clone the repository:
-   git clone https://github.com/yourusername/ivao-atc-tracker.git
+   git clone https://github.com/kbirand/ivao-atc-tracker.git
 2. Open the project in Xcode:
    cd ivao-atc-tracker
    open IVAO_ATC_Tracker.xcodeproj
